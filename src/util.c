@@ -1,0 +1,129 @@
+#include "util.h"
+
+lua_Number ljack_current_time_seconds()
+{
+    lua_Number rslt;
+#ifdef LJACK_ASYNC_USE_WIN32
+    struct _timeb timeval;
+    _ftime(&timeval);
+    rslt = ((lua_Number)timeval.time) + ((lua_Number)timeval.millitm) * 0.001;
+#else
+    struct timeval timeval;
+    gettimeofday(&timeval, NULL);
+    rslt = ((lua_Number)timeval.tv_sec) + ((lua_Number)timeval.tv_usec) * 0.000001;
+#endif
+    return rslt;
+}
+
+
+bool ljack_membuf_init(MemBuffer* b, size_t initialCapacity, lua_Number growFactor)
+{
+    memset(b, 0, sizeof(MemBuffer));
+    b->growFactor = growFactor;
+    if (initialCapacity > 0) {
+        char* data = malloc(initialCapacity);
+        if (data != NULL) {
+            b->bufferData     = data;
+            b->bufferStart    = data;
+            b->bufferCapacity = initialCapacity;
+            return true;
+        } else {
+            return false;
+        }
+    } else {
+        return true;
+    }
+}
+
+void ljack_membuf_free(MemBuffer* b)
+{
+    if (b->bufferData) {
+        free(b->bufferData);
+        b->bufferData     = NULL;
+        b->bufferStart    = NULL;
+        b->bufferLength   = 0;
+        b->bufferCapacity = 0;
+    }
+}
+
+/**
+ *  0 : ok
+ * -1 : buffer should not grow
+ * -2 : buffer can   not grow
+ */
+int ljack_membuf_reserve0(MemBuffer* b, size_t newLength)
+{
+    memmove(b->bufferData, b->bufferStart, b->bufferLength);
+    b->bufferStart = b->bufferData;
+
+    if (newLength > b->bufferCapacity) {
+        if (b->bufferData == NULL) {
+            size_t newCapacity = 2 * (newLength);
+            b->bufferData = malloc(newCapacity);
+            if (b->bufferData == NULL) {
+                return -2;
+            }
+            b->bufferStart    = b->bufferData;
+            b->bufferCapacity = newCapacity;
+        } else if (b->growFactor > 0) {
+            size_t newCapacity = b->bufferCapacity * b->growFactor;
+            if (newCapacity < newLength) {
+                newCapacity = newLength;
+            }
+            char* newData = realloc(b->bufferData, newCapacity);
+            if (newData == NULL) {
+                return -2;
+            }
+            b->bufferData     = newData;
+            b->bufferStart    = newData;
+            b->bufferCapacity = newCapacity;
+        } else {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+void ljack_util_quote_lstring(lua_State* L, const char* s, size_t len)
+{
+    if (s) {
+        luaL_Buffer tmp;
+        luaL_buffinit(L, &tmp);
+        luaL_addchar(&tmp, '"');
+        int i;
+        for (i = 0; i < len; ++i) {
+            char c = s[i];
+            if (c == 0) {
+                luaL_addstring(&tmp, "\\0");
+            } else if (c == '"') {
+                luaL_addstring(&tmp, "\\\"");
+            } else if (c == '\\') {
+                luaL_addstring(&tmp, "\\\\");
+            } else {
+                luaL_addchar(&tmp, c);
+            }
+        }
+        luaL_addchar(&tmp, '"');
+        luaL_pushresult(&tmp);
+    } else {
+        lua_pushstring(L, "(nil)");
+    }
+}
+
+void ljack_util_quote_string(lua_State* L, const char* s)
+{
+    ljack_util_quote_lstring(L, s, (s != NULL) ? strlen(s) : 0);
+}
+
+int ljack_util_push_string_list(lua_State* L)
+{
+    const char** list = lua_touserdata(L, 1);
+    lua_newtable(L);                   /* -> table */
+    int i;
+    for (i = 0;  list[i]; ++i) {
+        lua_pushstring(L, list[i]);    /* -> table, string */
+        lua_rawseti(L, -2, i+1);       /* -> table */
+    }
+    return 1;                          /* -> table */
+}
+
