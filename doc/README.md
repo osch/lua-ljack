@@ -25,6 +25,7 @@
         * [client:port_by_name()](#client_port_by_name)
         * [client:get_time()](#client_get_time)
         * [client:get_sample_rate()](#client_get_sample_rate)
+        * [client:cpu_load()](#client_cpu_load)
    * [Port Methods](#port-methods)
         * [port:unregister()](#port_unregister)
         * [port:get_client()](#port_get_client)
@@ -298,6 +299,15 @@ to be implemented in native C using the [LJACK C API].
   `** </a>
 
   Returns the sample rate of the JACK system, as set by the user when jackd was started.
+
+<!-- ---------------------------------------------------------------------------------------- -->
+
+* <a id="client_cpu_load">**`      client:cpu_load()
+  `** </a>
+
+  Returns the current CPU load estimated by JACK as float number in percent. This is a running 
+  average of the time it takes to execute a full process cycle for all clients as a percentage 
+  of the real time available per cycle determined by the buffer size and sample rate. 
 
 <!-- ---------------------------------------------------------------------------------------- -->
 ##   Port Methods

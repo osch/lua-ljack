@@ -47,23 +47,27 @@ static LogFunc builtin_log_functions[] = {
 /* ============================================================================================ */
 
 typedef struct {
+    bool                 isError;
     Lock                 lock;
     AtomicCounter        initStage;
+    LogFunc              logFunc;
     const receiver_capi* capi;
     receiver_object*     receiver;
     receiver_writer*     writer;
-    bool                 isError;
 } LogSetting;
 
 
-static LogSetting errorLog = {0};
-static LogSetting infoLog  = {0};
+static LogSetting errorLog = { true,  0 };
+static LogSetting infoLog  = { false, 0 };
 
 static void assureMutexInitialized(LogSetting* s)
 {
     if (atomic_get(&s->initStage) != 2) {
         if (atomic_set_if_equal(&s->initStage, 0, 1)) {
             async_lock_init(&s->lock);
+            if (s->isError) {
+                s->logFunc = logStdErr;
+            }
             atomic_set(&s->initStage, 2);
         } 
         else {
@@ -100,6 +104,7 @@ static void logToReceiver(LogSetting* s, const char* msg)
             s->capi->releaseReceiver(s->receiver);
             s->writer = NULL;
             s->receiver = NULL;
+            s->logFunc  = NULL;
             if (s->isError) {
                 jack_set_error_function(logSilent);
             } else {
@@ -115,9 +120,13 @@ static void logToReceiver(LogSetting* s, const char* msg)
                             s->isError ? "error" : "info", ehdata.buffer);
             free(ehdata.buffer);
         }
+    } else if (s->logFunc) {
+        s->logFunc(msg);
     }
     async_lock_release(&s->lock);
 }
+
+/* ============================================================================================ */
 
 static void errorCallback(const char* msg)
 {
@@ -171,6 +180,7 @@ static int setLogFunction(lua_State* L, LogSetting* s)
             s->capi->releaseReceiver(s->receiver);
             s->capi->freeWriter(s->writer);
         }
+        s->logFunc  = logFunc;
         s->capi     = api;
         s->receiver = rcv;
         s->writer   = wrt;
@@ -183,17 +193,53 @@ static int setLogFunction(lua_State* L, LogSetting* s)
     return 0;
 }
 
+
+/* ============================================================================================ */
+
 static int Ljack_set_error_log(lua_State* L)
 {
     assureMutexInitialized(&errorLog);
-    errorLog.isError = true;
     return setLogFunction(L, &errorLog);
 }
+
+/* ============================================================================================ */
 
 static int Ljack_set_info_log(lua_State* L)
 {
     assureMutexInitialized(&infoLog);
     return setLogFunction(L, &infoLog);
+}
+
+/* ============================================================================================ */
+
+void ljack_log_error(const char* msg)
+{
+    assureMutexInitialized(&errorLog);
+    logToReceiver(&errorLog, msg);
+}
+
+/* ============================================================================================ */
+
+void ljack_log_info(const char* msg)
+{
+    assureMutexInitialized(&infoLog);
+    logToReceiver(&infoLog, msg);
+}
+
+/* ============================================================================================ */
+
+static int Ljack_log_error(lua_State* L)
+{
+    luaL_checkstring(L, 1);
+    ljack_log_error(lua_tostring(L, 1));
+}
+
+/* ============================================================================================ */
+
+static int Ljack_log_info(lua_State* L)
+{
+    luaL_checkstring(L, 1);
+    ljack_log_info(lua_tostring(L, 1));
 }
 
 /* ============================================================================================ */
@@ -206,11 +252,37 @@ static int Ljack_threadid(lua_State* L)
 
 /* ============================================================================================ */
 
+static int Ljack_type(lua_State* L)
+{
+    luaL_checkany(L, 1);
+    int tp = lua_type(L, 1);
+    if (tp == LUA_TUSERDATA) {
+        if (lua_getmetatable(L, 1)) {
+            if (lua_getfield(L, -1, "__name") == LUA_TSTRING) {
+                lua_pushvalue(L, -1);
+                if (lua_gettable(L, LUA_REGISTRYINDEX) == LUA_TTABLE) {
+                    if (lua_rawequal(L, -3, -1)) {
+                        lua_pop(L, 1);
+                        return 1;
+                    }
+                }
+            }
+        }
+    }
+    lua_pushstring(L, lua_typename(L, tp));
+    return 1;
+}
+
+/* ============================================================================================ */
+
 static const luaL_Reg ModuleFunctions[] = 
 {
     { "set_error_log",  Ljack_set_error_log  },
     { "set_info_log",   Ljack_set_info_log   },
+    { "log_error",      Ljack_log_error      },
+    { "log_info",       Ljack_log_info       },
     { "threadid",       Ljack_threadid       },
+    { "type",           Ljack_type           },
     { NULL,             NULL } /* sentinel */
 };
 
@@ -233,6 +305,9 @@ DLL_PUBLIC int luaopen_ljack(lua_State* L)
     
     lua_pushliteral(L, LJACK_VERSION_STRING);
     lua_setfield(L, module, "_VERSION");
+    
+    lua_pushinteger(L, sizeof(jack_default_audio_sample_t));
+    lua_setfield(L, module, "SAMPLE_SIZE");
     
     lua_checkstack(L, LUA_MINSTACK);
     

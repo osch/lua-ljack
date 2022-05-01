@@ -72,9 +72,9 @@ static int processCallback(jack_nframes_t nframes, void* processorData)
     jack_nframes_t event_index = 0;
     jack_nframes_t event_count = jack_midi_get_event_count(port_buf);
     
-    const receiver_capi* capi     = udata->receiverCapi;
-    receiver_object*     receiver = udata->receiver;
-    receiver_writer*     writer   = udata->receiverWriter;
+    const receiver_capi* receiverCapi = udata->receiverCapi;
+    receiver_object*     receiver     = udata->receiver;
+    receiver_writer*     writer       = udata->receiverWriter;
 
     jack_nframes_t t0 = jack_last_frame_time(client);
     if (receiver) {
@@ -82,10 +82,10 @@ static int processCallback(jack_nframes_t nframes, void* processorData)
             jack_midi_event_get(&in_event, port_buf, i);
             size_t s = in_event.size;
             if (s > 0) {
-                capi->addIntegerToWriter(writer, jack_frames_to_time(client, t0 + in_event.time));
-                capi->addStringToWriter (writer, in_event.buffer, in_event.size);
-                capi->msgToReceiver(receiver, writer, false /* clear */, false /* nonblock */, 
-                                    NULL /* error handler */, NULL /* error handler data */);
+                receiverCapi->addIntegerToWriter(writer, jack_frames_to_time(client, t0 + in_event.time));
+                receiverCapi->addStringToWriter (writer, in_event.buffer, in_event.size);
+                receiverCapi->msgToReceiver(receiver, writer, false /* clear */, false /* nonblock */, 
+                                            NULL /* error handler */, NULL /* error handler data */);
             }
         }
     }

@@ -267,15 +267,6 @@ static int LjackClient_get_client_name(lua_State* L)
 
 /* ============================================================================================ */
 
-static int LjackClient_cpu_load(lua_State* L)
-{
-    ClientUserData* udata = checkClientUdata(L, 1);
-    lua_pushnumber(L, jack_cpu_load(udata->client));
-    return 1;
-}
-
-/* ============================================================================================ */
-
 static int LjackClient_port_name(lua_State* L)
 {
     int arg = 1;
@@ -558,6 +549,23 @@ static int LjackClient_get_sample_rate(lua_State* L)
     lua_pushinteger(L, jack_get_sample_rate(udata->client));
     return 1;
 }
+/* ============================================================================================ */
+
+static int LjackClient_get_buffer_size(lua_State* L)
+{
+    ClientUserData* udata = checkClientUdata(L, 1);
+    lua_pushinteger(L, jack_get_buffer_size(udata->client));
+    return 1;
+}
+
+/* ============================================================================================ */
+
+static int LjackClient_cpu_load(lua_State* L)
+{
+    ClientUserData* udata = checkClientUdata(L, 1);
+    lua_pushnumber(L, jack_cpu_load(udata->client));
+    return 1;
+}
 
 /* ============================================================================================ */
 
@@ -567,7 +575,6 @@ static const luaL_Reg LjackClientMethods[] =
     { "activate",            LjackClient_activate        },
     { "deactivate",          LjackClient_deactivate      },
     { "get_client_name",     LjackClient_get_client_name },
-    { "cpu_load",            LjackClient_cpu_load        },
     { "port_name",           LjackClient_port_name       },
     { "port_short_name",     LjackClient_port_short_name },
     { "port_register",       LjackClient_port_register   },
@@ -579,6 +586,8 @@ static const luaL_Reg LjackClientMethods[] =
     { "get_connections",     LjackClient_get_connections },
     { "get_time",            LjackClient_get_time        },
     { "get_sample_rate",     LjackClient_get_sample_rate },
+    { "get_buffer_size",     LjackClient_get_buffer_size },
+    { "cpu_load",            LjackClient_cpu_load        },
 
     { NULL,         NULL } /* sentinel */
 };

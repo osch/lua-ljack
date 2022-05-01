@@ -8,6 +8,8 @@
 #include "port.h"
 #include "client_intern.h"
 
+#include "main.h"
+
 /* ============================================================================================ */
 
 typedef LjackPortUserData   PortUserData;
@@ -145,6 +147,21 @@ jack_client_t* registerProcessor(lua_State* L,
 
 /* ============================================================================================ */
 
+static void logError(ljack_capi_client* client, const char* msg)
+{
+    ljack_log_error(msg);
+}
+
+/* ============================================================================================ */
+
+static void logInfo(ljack_capi_client* client, const char* msg)
+{
+    ljack_log_info(msg);
+}
+
+
+/* ============================================================================================ */
+
 static int unregisterProcessor(lua_State* L,
                                ljack_capi_client* client,
                                void* processorData)
@@ -241,6 +258,8 @@ const ljack_capi ljack_capi_impl =
     NULL, /* next_capi */
     
     getLjackClient,
+    logError,
+    logInfo,
     registerProcessor,
     unregisterProcessor,
     activateProcessor,

@@ -3,7 +3,7 @@
 
 #define LJACK_CAPI_ID_STRING     "_capi_ljack"
 
-#define LJACK_CAPI_VERSION_MAJOR -1
+#define LJACK_CAPI_VERSION_MAJOR -2
 #define LJACK_CAPI_VERSION_MINOR  1
 #define LJACK_CAPI_VERSION_PATCH  0
 
@@ -91,6 +91,27 @@ struct ljack_capi
     ljack_capi_client* (*getLjackClient)(lua_State* L, int index);
 
     /**
+     * Log errror message. May be called from any thread, also in the 
+     * processCallback.
+     * Should only be called for severe errors. Default logs to stderr.
+     *
+     * client  - may be NULL is message is not associated to a specific 
+     *           client.
+     */                               
+    void (*logError)(ljack_capi_client* client,
+                     const char* msg);
+    
+    /**
+     * Log info message. May be called from any thread, also in the 
+     * processCallback. Default is to discard these messages.
+     *
+     * client  - may be NULL is message is not associated to a specific 
+     *           client.
+     */                               
+    void (*logInfo)(ljack_capi_client* client,
+                    const char* msg);
+    
+    /**
      * Registers native procesor object to the Ljack client. Returns a pointer
      * to the native jack client on success. Returns NULL on failure.
      * This method may also raise a lua error.
@@ -126,7 +147,6 @@ struct ljack_capi
                                ljack_capi_client* client,
                                void* processorData);
 
-    
     /**
      * Activates the processor. After this point the processCallback is called for realtime
      * processing.
