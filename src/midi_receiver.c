@@ -1,34 +1,34 @@
-#include <jack/jack.h>
-#include <jack/midiport.h>
-
 #include "midi_receiver.h"
 
-#define LJACK_CAPI_IMPLEMENT_GET_CAPI 1
-#include "ljack_capi.h"
+#define AUPROC_CAPI_IMPLEMENT_GET_CAPI 1
+#include "auproc_capi.h"
 
 #define RECEIVER_CAPI_IMPLEMENT_GET_CAPI 1
 #include "receiver_capi.h"
 
 /* ============================================================================================ */
 
-const char* const LJACK_MIDI_RECEIVER_CLASS_NAME = "ljack.midi_receiver";
+static const char* const MIDI_RECEIVER_CLASS_NAME = "auproc.midi_receiver";
 
-static const char* LJACK_ERROR_INVALID_MIDI_RECEIVER = "invalid ljack.midi_receiver";
+static const char* ERROR_INVALID_MIDI_RECEIVER = "invalid auproc.midi_receiver";
 
 /* ============================================================================================ */
 
-typedef struct LjackMidiReceiverUserData LjackMidiReceiverUserData;
-typedef        LjackMidiReceiverUserData      MidiReceiverUserData;
+typedef struct MidiReceiverUserData MidiReceiverUserData;
 
-struct LjackMidiReceiverUserData
+struct MidiReceiverUserData
 {
-    jack_client_t*     jackClient;
-    jack_port_t*       midiInPort;
-
+    const char*           className;
+    auproc_processor* processor;
+    
+    bool               closed;
     bool               activated;
     
-    const ljack_capi*  ljackCapi;
-    ljack_capi_client* ljackCapiClient;
+    const auproc_capi*  auprocCapi;
+    auproc_engine*      auprocEngine;
+
+    auproc_connector*      midiInConnector;
+    const auproc_midimeth* midiMethods;
     
     const receiver_capi* receiverCapi;
     receiver_object*     receiver;
@@ -41,7 +41,7 @@ static void setupMidiReceiverMeta(lua_State* L);
 
 static int pushMidiReceiverMeta(lua_State* L)
 {
-    if (luaL_newmetatable(L, LJACK_MIDI_RECEIVER_CLASS_NAME)) {
+    if (luaL_newmetatable(L, MIDI_RECEIVER_CLASS_NAME)) {
         setupMidiReceiverMeta(L);
     }
     return 1;
@@ -51,9 +51,15 @@ static int pushMidiReceiverMeta(lua_State* L)
 
 static MidiReceiverUserData* checkMidiReceiverUdata(lua_State* L, int arg)
 {
-    MidiReceiverUserData* udata = luaL_checkudata(L, arg, LJACK_MIDI_RECEIVER_CLASS_NAME);
-    if (!udata->jackClient) {
-        luaL_error(L, LJACK_ERROR_INVALID_MIDI_RECEIVER);
+    MidiReceiverUserData* udata        = luaL_checkudata(L, arg, MIDI_RECEIVER_CLASS_NAME);
+    const auproc_capi*    auprocCapi   = udata->auprocCapi;
+    auproc_engine*        auprocEngine = udata->auprocEngine;
+
+    if (auprocCapi) {
+        auprocCapi->checkEngineIsNotClosed(L, auprocEngine);
+    }
+    if (udata->closed) {
+        luaL_error(L, ERROR_INVALID_MIDI_RECEIVER);
         return NULL;
     }
     return udata;
@@ -61,28 +67,33 @@ static MidiReceiverUserData* checkMidiReceiverUdata(lua_State* L, int arg)
 
 /* ============================================================================================ */
 
-static int processCallback(jack_nframes_t nframes, void* processorData)
+static int processCallback(uint32_t nframes, void* processorData)
 {
-    MidiReceiverUserData* udata = (MidiReceiverUserData*) processorData;
+    MidiReceiverUserData* udata        = (MidiReceiverUserData*) processorData;
+    const auproc_capi*    auprocCapi   = udata->auprocCapi;
+    auproc_engine*        auprocEngine = udata->auprocEngine;
+
+    const auproc_midimeth* methods = udata->midiMethods;
+    auproc_midibuf*        inBuf   = methods->getMidiBuffer(udata->midiInConnector, nframes);
     
-    jack_client_t* client   = udata->jackClient;
-    void*          port_buf = jack_port_get_buffer(udata->midiInPort, nframes);
     
-    jack_midi_event_t in_event;
-    jack_nframes_t event_index = 0;
-    jack_nframes_t event_count = jack_midi_get_event_count(port_buf);
+    auproc_midi_event in_event;
+    uint32_t  event_index = 0;
+    uint32_t  event_count = methods->getEventCount(inBuf);
     
     const receiver_capi* receiverCapi = udata->receiverCapi;
     receiver_object*     receiver     = udata->receiver;
     receiver_writer*     writer       = udata->receiverWriter;
 
-    jack_nframes_t t0 = jack_last_frame_time(client);
+    uint32_t t0 = auprocCapi->getProcessBeginFrameTime(auprocEngine); // jack_last_frame_time
     if (receiver) {
         for (int i = 0; i < event_count; ++i) {
-            jack_midi_event_get(&in_event, port_buf, i);
+            methods->getMidiEvent(&in_event, inBuf, i);
             size_t s = in_event.size;
             if (s > 0) {
-                receiverCapi->addIntegerToWriter(writer, jack_frames_to_time(client, t0 + in_event.time));
+                uint64_t usecs = auprocCapi->frameTimeToMicroSeconds(auprocEngine, t0 + in_event.time); // jack_frames_to_time
+                
+                receiverCapi->addIntegerToWriter(writer, usecs);
                 receiverCapi->addStringToWriter (writer, in_event.buffer, in_event.size);
                 receiverCapi->msgToReceiver(receiver, writer, false /* clear */, false /* nonblock */, 
                                             NULL /* error handler */, NULL /* error handler data */);
@@ -93,37 +104,48 @@ static int processCallback(jack_nframes_t nframes, void* processorData)
     return 0;
 }
 
-static void clientClosed(lua_State* L, void* processorData)
+/* ============================================================================================ */
+
+static void engineClosedCallback(void* processorData)
 {
     MidiReceiverUserData* udata = (MidiReceiverUserData*) processorData;
  
-    udata->jackClient      = NULL;
-    udata->activated       = false;
-    udata->ljackCapi       = NULL;
-    udata->ljackCapiClient = NULL;
+    udata->closed     = true;
+    udata->activated  = false;
+}
+
+static void engineReleasedCallback(void* processorData)
+{
+    MidiReceiverUserData* udata = (MidiReceiverUserData*) processorData;
+ 
+    udata->closed      = true;
+    udata->activated   = false;
+    udata->auprocCapi   = NULL;
+    udata->auprocEngine = NULL;
 }
 
 /* ============================================================================================ */
 
-static int LjackMidiReceiver_new(lua_State* L)
+static int MidiReceiver_new(lua_State* L)
 {
-    const int portArg = 1;
+    const int conArg = 1;
     const int recvArg = 2;
     MidiReceiverUserData* udata = lua_newuserdata(L, sizeof(MidiReceiverUserData));
     memset(udata, 0, sizeof(MidiReceiverUserData));
+    udata->className = MIDI_RECEIVER_CLASS_NAME;
     pushMidiReceiverMeta(L);                                /* -> udata, meta */
     lua_setmetatable(L, -2);                                /* -> udata */
     int versionError = 0;
-    const ljack_capi* capi = ljack_get_capi(L, portArg, &versionError);
-    ljack_capi_client* capiClient = NULL;
+    const auproc_capi* capi = auproc_get_capi(L, conArg, &versionError);
+    auproc_engine* engine = NULL;
     if (capi) {
-        capiClient = capi->getLjackClient(L, portArg);
+        engine = capi->getEngine(L, conArg);
     }
-    if (!capi || !capiClient) {
+    if (!capi || !engine) {
         if (versionError) {
-            return luaL_argerror(L, portArg, "ljack version mismatch");
+            return luaL_argerror(L, conArg, "auproc version mismatch");
         } else {
-            return luaL_argerror(L, portArg, "expected ljack.port");
+            return luaL_argerror(L, conArg, "expected auproc port or process buffer");
         }
     }
     
@@ -148,83 +170,88 @@ static int LjackMidiReceiver_new(lua_State* L)
     if (!udata->receiverWriter) {
         return luaL_error(L, "out of memory");
     }
+    const char* processorName = lua_pushfstring(L, "%s: %p", MIDI_RECEIVER_CLASS_NAME, udata);   /* -> udata, name */
     
-    ljack_capi_reg_port portReg = {LJACK_CAPI_PORT_IN, LJACK_CAPI_PORT_MIDI, NULL};
-    ljack_capi_reg_err portError = {0};
-    jack_client_t* jackClient = capi->registerProcessor(L, portArg, 1, capiClient, udata, processCallback, clientClosed, &portReg, &portError);
-    if (!jackClient)
+    auproc_con_reg conReg = {AUPROC_MIDI, AUPROC_IN, NULL};
+    auproc_con_reg_err regError = {0};
+    auproc_processor* proc = capi->registerProcessor(L, conArg, 1, engine, processorName, udata, 
+                                                         processCallback, NULL, engineClosedCallback, engineReleasedCallback,
+                                                         &conReg, &regError);
+    lua_pop(L, 1); /* -> udata */
+
+    if (!proc)
     {
-        if (portError.portError == LJACK_CAPI_PORT_ERR_PORT_INVALID) {
-            return luaL_argerror(L, portArg, "invalid ljack.port");
+        if (regError.errorType == AUPROC_REG_ERR_CONNCTOR_INVALID) {
+            return luaL_argerror(L, conArg, "invalid connector object");
         }
-        else if (portError.portError == LJACK_CAPI_PORT_ERR_CLIENT_MISMATCH
-              || portError.portError == LJACK_CAPI_PORT_ERR_PORT_NOT_MINE) 
+        else if (regError.errorType == AUPROC_REG_ERR_ENGINE_MISMATCH) 
         {
-            return luaL_argerror(L, portArg, "port belongs to other client");
+            const char* msg = lua_pushfstring(L, "connector belongs to other %s", 
+                                                 capi->engine_category_name);
+            return luaL_argerror(L, conArg, msg);
         }
-        else if (portError.portError != LJACK_CAPI_PORT_NO_ERROR) {
-            return luaL_argerror(L, portArg, "expected MIDI IN port");
+        else if (regError.errorType == AUPROC_REG_ERR_ARG_INVALID
+              || regError.errorType == AUPROC_REG_ERR_WRONG_DIRECTION
+              || regError.errorType == AUPROC_REG_ERR_WRONG_CONNECTOR_TYPE)
+        {
+            return luaL_argerror(L, conArg, "expected MIDI IN connector");
         }
         else {
-            return luaL_error(L, "cannot register processor");
+            return luaL_error(L, "cannot register processor (err=%d)", regError.errorType);
         }
     }
- 
-    udata->jackClient      = jackClient;
+    udata->processor       = proc;
     udata->activated       = false;
-    udata->ljackCapi       = capi;
-    udata->ljackCapiClient = capiClient;
-    udata->midiInPort      = portReg.jackPort;
+    udata->auprocCapi      = capi;
+    udata->auprocEngine    = engine;
+    udata->midiInConnector = conReg.connector;
+    udata->midiMethods     = conReg.midiMethods;
     return 1;
 }
 
 /* ============================================================================================ */
 
-static int LjackMidiReceiver_release(lua_State* L)
+static int MidiReceiver_release(lua_State* L)
 {
-    MidiReceiverUserData* udata = luaL_checkudata(L, 1, LJACK_MIDI_RECEIVER_CLASS_NAME);
-    if (udata->jackClient) {
-        udata->ljackCapi->unregisterProcessor(L, udata->ljackCapiClient, udata);
-
-        udata->jackClient      = NULL;
-        udata->activated       = false;
-        udata->ljackCapi       = NULL;
-        udata->ljackCapiClient = NULL;
-        
-        if (udata->receiver) {
-            if (udata->receiverWriter) {
-                udata->receiverCapi->freeWriter(udata->receiverWriter);
-                udata->receiverWriter = NULL;
-            }
-            udata->receiverCapi->releaseReceiver(udata->receiver);
-            udata->receiver     = NULL;
-            udata->receiverCapi = NULL;
+    MidiReceiverUserData* udata = luaL_checkudata(L, 1, MIDI_RECEIVER_CLASS_NAME);
+    udata->closed  = true;
+    udata->activated  = false;
+    if (udata->auprocCapi) {
+        udata->auprocCapi->unregisterProcessor(L, udata->auprocEngine, udata->processor);
+        udata->processor    = NULL;
+        udata->auprocCapi    = NULL;
+        udata->auprocEngine  = NULL;
+    }
+    if (udata->receiver) {
+        if (udata->receiverWriter) {
+            udata->receiverCapi->freeWriter(udata->receiverWriter);
+            udata->receiverWriter = NULL;
         }
+        udata->receiverCapi->releaseReceiver(udata->receiver);
+        udata->receiver     = NULL;
+        udata->receiverCapi = NULL;
     }
     return 0;
 }
 
 /* ============================================================================================ */
 
-static int LjackMidiReceiver_toString(lua_State* L)
+static int MidiReceiver_toString(lua_State* L)
 {
-    MidiReceiverUserData* udata = luaL_checkudata(L, 1, LJACK_MIDI_RECEIVER_CLASS_NAME);
+    MidiReceiverUserData* udata = luaL_checkudata(L, 1, MIDI_RECEIVER_CLASS_NAME);
 
-    if (udata->jackClient) {
-        lua_pushfstring(L, "%s: %p", LJACK_MIDI_RECEIVER_CLASS_NAME, udata);
-    } else {
-        lua_pushfstring(L, "%s: invalid", LJACK_MIDI_RECEIVER_CLASS_NAME);
-    }
+    lua_pushfstring(L, "%s: %p", MIDI_RECEIVER_CLASS_NAME, udata);
+
     return 1;
 }
 
 /* ============================================================================================ */
 
-static int LjackMidiReceiver_activate(lua_State* L)
+static int MidiReceiver_activate(lua_State* L)
 {
     MidiReceiverUserData* udata = checkMidiReceiverUdata(L, 1);
     if (!udata->activated) {    
-        udata->ljackCapi->activateProcessor(L, udata->ljackCapiClient, udata);
+        udata->auprocCapi->activateProcessor(L, udata->auprocEngine, udata->processor);
         udata->activated = true;
     }
     return 0;
@@ -232,11 +259,11 @@ static int LjackMidiReceiver_activate(lua_State* L)
 
 /* ============================================================================================ */
 
-static int LjackMidiReceiver_deactivate(lua_State* L)
+static int MidiReceiver_deactivate(lua_State* L)
 {
     MidiReceiverUserData* udata = checkMidiReceiverUdata(L, 1);
     if (udata->activated) {                                           
-        udata->ljackCapi->deactivateProcessor(L, udata->ljackCapiClient, udata);
+        udata->auprocCapi->deactivateProcessor(L, udata->auprocEngine, udata->processor);
         udata->activated = false;
     }
     return 0;
@@ -244,25 +271,25 @@ static int LjackMidiReceiver_deactivate(lua_State* L)
 
 /* ============================================================================================ */
 
-static const luaL_Reg LjackMidiReceiverMethods[] = 
+static const luaL_Reg MidiReceiverMethods[] = 
 {
-    { "activate",    LjackMidiReceiver_activate },
-    { "deactivate",  LjackMidiReceiver_deactivate },
-    { "close",       LjackMidiReceiver_release },
+    { "activate",    MidiReceiver_activate },
+    { "deactivate",  MidiReceiver_deactivate },
+    { "close",       MidiReceiver_release },
     { NULL,          NULL } /* sentinel */
 };
 
-static const luaL_Reg LjackMidiReceiverMetaMethods[] = 
+static const luaL_Reg MidiReceiverMetaMethods[] = 
 {
-    { "__tostring", LjackMidiReceiver_toString },
-    { "__gc",       LjackMidiReceiver_release  },
+    { "__tostring", MidiReceiver_toString },
+    { "__gc",       MidiReceiver_release  },
 
     { NULL,       NULL } /* sentinel */
 };
 
 static const luaL_Reg ModuleFunctions[] = 
 {
-    { "new_midi_receiver", LjackMidiReceiver_new },
+    { "new_midi_receiver", MidiReceiver_new },
     { NULL,                NULL } /* sentinel */
 };
 
@@ -270,22 +297,22 @@ static const luaL_Reg ModuleFunctions[] =
 
 static void setupMidiReceiverMeta(lua_State* L)
 {                                                          /* -> meta */
-    lua_pushstring(L, LJACK_MIDI_RECEIVER_CLASS_NAME);        /* -> meta, className */
+    lua_pushstring(L, MIDI_RECEIVER_CLASS_NAME);        /* -> meta, className */
     lua_setfield(L, -2, "__metatable");                    /* -> meta */
 
-    luaL_setfuncs(L, LjackMidiReceiverMetaMethods, 0);     /* -> meta */
+    luaL_setfuncs(L, MidiReceiverMetaMethods, 0);     /* -> meta */
     
     lua_newtable(L);                                       /* -> meta, MidiReceiverClass */
-    luaL_setfuncs(L, LjackMidiReceiverMethods, 0);         /* -> meta, MidiReceiverClass */
+    luaL_setfuncs(L, MidiReceiverMethods, 0);         /* -> meta, MidiReceiverClass */
     lua_setfield (L, -2, "__index");                       /* -> meta */
 }
 
 
 /* ============================================================================================ */
 
-int ljack_midi_receiver_init_module(lua_State* L, int module)
+int auproc_midi_receiver_init_module(lua_State* L, int module)
 {
-    if (luaL_newmetatable(L, LJACK_MIDI_RECEIVER_CLASS_NAME)) {
+    if (luaL_newmetatable(L, MIDI_RECEIVER_CLASS_NAME)) {
         setupMidiReceiverMeta(L);
     }
     lua_pop(L, 1);

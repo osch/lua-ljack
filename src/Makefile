@@ -3,7 +3,7 @@ default: ljack
 
 BUILD_DATE  := $(shell date "+%Y-%m-%dT%H:%M:%S")
 
-LNX_GCC_RUN := gcc -shared -fPIC -O2 -g
+LNX_GCC_RUN := gcc -shared -fPIC -O2 -g  -Werror=return-type
 WIN_GCC_RUN := gcc -shared -fPIC -O2
 MAC_GCC_RUN := MACOSX_DEPLOYMENT_TARGET=10.8 gcc -O2 -bundle -undefined dynamic_lookup -all_load
 
@@ -42,9 +42,12 @@ ljack:
 	$(GCC_RUN) $(COPTS) \
 	    -D LJACK_VERSION=Makefile"-$(BUILD_DATE)" \
 	    main.c client.c client_intern.c port.c \
-	    ljack_capi_impl.c \
+	    auproc_capi_impl.c \
 	    util.c error.c async_util.c   ljack_compat.c  \
+	    procbuf.c \
 	    midi_receiver.c midi_sender.c \
+	    audio_mixer.c midi_mixer.c \
+	    audio_sender.c \
 	    $(LOPTS) \
 	    -o build/lua$(LUA_VERSION)/ljack.$(SO_EXT)
 	    

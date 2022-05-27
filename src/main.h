@@ -3,8 +3,11 @@
 
 #include "util.h"
 
-void ljack_log_error(const char* msg);
-void ljack_log_info(const char* msg);
+bool ljack_log_errorV(const char* fmt, va_list args);
+bool ljack_log_infoV(const char* fmt, va_list args);
+
+void ljack_log_error(const char* fmt, ...);
+void ljack_log_info(const char* fmt, ...);
 
 DLL_PUBLIC int luaopen_ljack(lua_State* L);
 

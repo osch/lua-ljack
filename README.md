@@ -6,10 +6,12 @@
 
 Lua binding for the [JACK Audio Connection Kit](https://jackaudio.org/).
 
-This binding enables Lua scripting code to registrate ports and to manage port
+This binding enables [Lua] scripting code to registrate ports and to manage port
 connections and Lua audio processor objects for the JACK Audio Connection Kit. 
-Realtime audio processing of the Lua processor objects has to be implemented in
-native C code. 
+Realtime audio processing of [Lua processor objects](./doc/README.md#processor-objects) 
+has to be implemented in native C code. 
+
+[Lua]:          https://www.lua.org
 
 <!-- ---------------------------------------------------------------------------------------- -->
 

@@ -11,21 +11,29 @@
         * [ljack.set_info_log()](#ljack_set_info_log)
         * [ljack.client_name_size()](#ljack_client_name_size)
         * [ljack.port_name_size()](#ljack_port_name_size)
+        * [ljack.new_audio_mixer()](#ljack_new_audio_mixer)
+        * [ljack.new_midi_mixer()](#ljack_new_midi_mixer)
         * [ljack.new_midi_receiver()](#ljack_new_midi_receiver)
         * [ljack.new_midi_sender()](#ljack_new_midi_sender)
    * [Client Methods](#client-methods)
+        * [client:name()](#client_name)
         * [client:activate()](#client_activate)
         * [client:deactivate()](#client_deactivate)
         * [client:close()](#client_close)
         * [client:port_register()](#client_port_register)
         * [client:connect()](#client_connect)
+        * [client:disconnect()](#client_disconnect)
         * [client:get_ports()](#client_get_ports)
         * [client:port_name()](#client_port_name)
         * [client:port_by_id()](#client_port_by_id)
         * [client:port_by_name()](#client_port_by_name)
         * [client:get_time()](#client_get_time)
+        * [client:frame_time()](#client_frame_time)
         * [client:get_sample_rate()](#client_get_sample_rate)
+        * [client:get_buffer_size()](#client_get_buffer_size)
+        * [client:set_buffer_size()](#client_set_buffer_size)
         * [client:cpu_load()](#client_cpu_load)
+        * [client:new_process_buffer()](#client_new_process_buffer)
    * [Port Methods](#port-methods)
         * [port:unregister()](#port_unregister)
         * [port:get_client()](#port_get_client)
@@ -45,7 +53,7 @@
         * [PortConnect](#PortConnect)
         * [PortRegistration](#PortRegistration)
         * [PortRename](#PortRename)
-        * [SampleRate](#SampleRate)
+        * [BufferSize](#BufferSize)
         * [Shutdown](#Shutdown)
         * [XRun](#XRun)
 
@@ -58,7 +66,7 @@ LJACK is a Lua binding for the [JACK Audio Connection Kit](https://jackaudio.org
 This binding enables Lua scripting code to registrate ports and to manage port
 connections and Lua audio processor objects for the JACK Audio Connection Kit. 
 Realtime audio processing of the Lua [processor objects](#processor-objects) has 
-to be implemented in native C using the [LJACK C API].
+to be implemented in native C using the [Auproc C API].
 
 <!-- ---------------------------------------------------------------------------------------- -->
 ##   Module Functions
@@ -127,6 +135,16 @@ to be implemented in native C using the [LJACK C API].
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
+* <a id="ljack_new_audio_mixer">**`  ljack.new_audio_mixer(connector, connector, [connector,]* sender)
+  `**</a>
+
+<!-- ---------------------------------------------------------------------------------------- -->
+
+* <a id="ljack_new_midi_mixer">**`  ljack.new_midi_mixer(connector, connector, [connector,]* sender)
+  `**</a>
+
+<!-- ---------------------------------------------------------------------------------------- -->
+
 * <a id="ljack_new_midi_receiver">**`  ljack.new_midi_receiver(port, receiver)
   `**</a>
 
@@ -151,14 +169,14 @@ to be implemented in native C using the [LJACK C API].
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="ljack_new_midi_sender">**`  ljack.new_midi_sender(port, sender)
+* <a id="ljack_new_midi_sender">**`  ljack.new_midi_sender(connector, sender)
   `**</a>
   
   Returns a new midi sender object. The midi sender object is a 
   [processor object](#processor-objects).
   
-  * *port*   - port object of type *MIDI OUT*. The port must belong to the associated client, 
-               i.e. [port:is_mine()](#port_is_mine) must be *true*.
+  * *connector*   - connector object of type *MIDI OUT*. If this is a port, it must belong to the 
+                    associated client, i.e. [port:is_mine()](#port_is_mine) must be *true*.
                
   * *sender* - sender object for midi events, must implement the [Sender C API].
   
@@ -174,7 +192,39 @@ to be implemented in native C using the [LJACK C API].
   See also [example04.lua](../examples/example04.lua).
 
 <!-- ---------------------------------------------------------------------------------------- -->
+
+* <a id="ljack_new_audio_sender">**`  ljack.new_audio_sender(connector, sender)
+  `**</a>
+
+  * *connector*   - connector object of type *AUDIO OUT*. If this is a port, it must belong to the 
+                    associated client, i.e. [port:is_mine()](#port_is_mine) must be *true*.
+                    
+  * *sender* - sender object for sample data, must implement the [Sender C API], e.g. a [mtmsg] buffer.
+
+  The sender object should send for each chunk of sample data a message with one or two arguments:
+    - optional the frame time of the sample data as integer value in JACK's frame time
+      (see also [client:frame_time()](#client_frame_time)). If this value is not given,
+      the samples are played as soon as possible.
+    - chunk of sample data, an [carray] of 32-bit float values.
+ 
+  The caller is responsible for sending the events in orders, i.e. for increasing the frame 
+  time. The chunks of sample data may not overlap, i.e. the frame time of subsequent sample 
+  data chunks must be equal or larger then the frame time of the preceding sample data chunk
+  plus the length of the preceding chunk.
+
+  See also [example05.lua](../examples/example05.lua).
+
+<!-- ---------------------------------------------------------------------------------------- -->
 ##   Client Methods
+<!-- ---------------------------------------------------------------------------------------- -->
+
+* <a id="client_name">**`      client:name()
+  `** </a>
+  
+  Returns the actual client name. The actual name will differ from the name given
+  in [ljack.client_open()](#ljack_client_open) if there was another JACK client with
+  this name. 
+  
 <!-- ---------------------------------------------------------------------------------------- -->
 
 * <a id="client_activate">**`      client:activate()
@@ -224,6 +274,11 @@ to be implemented in native C using the [LJACK C API].
   The created port object is subject to garbage collection. If the port object
   is garbage collected, all connections belonging to this port are closed.
 
+  The created port object can be used as connector for [processor 
+  objects](#processor-objects). A port of type IN can be used as input connector 
+  by multiple processor objects whereas a port of type OUT can
+  only be used by one processor object as output connector.
+
 <!-- ---------------------------------------------------------------------------------------- -->
 
 * <a id="client_connect">**`       client:connect(sourcePort, destinationPort)
@@ -241,6 +296,13 @@ to be implemented in native C using the [LJACK C API].
 
   The type of the given ports (*"AUDIO"* or *"MIDI"*) must be the same for both ports.
   
+<!-- ---------------------------------------------------------------------------------------- -->
+
+* <a id="client_disconnect">**`    client:disconnect(sourcePort, destinationPort)
+  `** </a>
+
+  Disconnects the ports.
+    
 <!-- ---------------------------------------------------------------------------------------- -->
 
 * <a id="client_get_ports">**`     client:get_ports([portNamePattern[, typeName[, direction]]])
@@ -293,12 +355,36 @@ to be implemented in native C using the [LJACK C API].
 
   The value returned is guaranteed to be monotonic, but not linear. 
   
+
+<!-- ---------------------------------------------------------------------------------------- -->
+
+* <a id="client_frame_time">**`      client:frame_time()
+  `** </a>
+
+  Returns the estimated current time in frames.
+
 <!-- ---------------------------------------------------------------------------------------- -->
 
 * <a id="client_get_sample_rate">**`      client:get_sample_rate()
   `** </a>
 
   Returns the sample rate of the JACK system, as set by the user when jackd was started.
+
+<!-- ---------------------------------------------------------------------------------------- -->
+
+* <a id="client_get_buffer_size">**`      client:get_buffer_size()
+  `** </a>
+
+  Returns the number of frames that are processed in one process cycle.
+  See also [BufferSize status message](#BufferSize).
+
+<!-- ---------------------------------------------------------------------------------------- -->
+
+* <a id="client_set_buffer_size">**`      client:set_buffer_size(n)
+  `** </a>
+
+  Sets the number of frames that are processed in one process cycle.
+  See also [BufferSize status message](#BufferSize).
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
@@ -309,6 +395,18 @@ to be implemented in native C using the [LJACK C API].
   average of the time it takes to execute a full process cycle for all clients as a percentage 
   of the real time available per cycle determined by the buffer size and sample rate. 
 
+<!-- ---------------------------------------------------------------------------------------- -->
+
+* <a id="client_new_process_buffer">**` client:new_process_buffer([type])
+  `** </a>
+
+  Creates a new process buffer object which can be used as connector for [processor 
+  objects](#processor-objects). A process buffer can be used as input connector by multiple 
+  processor objects but as output connector it can only be used by one processor object.
+
+  * *type*       - optional string value, must be "AUDIO" or "MIDI". Default value is "AUDIO" 
+                   if this parameter is not given.
+  
 <!-- ---------------------------------------------------------------------------------------- -->
 ##   Port Methods
 <!-- ---------------------------------------------------------------------------------------- -->
@@ -382,13 +480,16 @@ to be implemented in native C using the [LJACK C API].
 <!-- ---------------------------------------------------------------------------------------- -->
 
 Processor objects are Lua objects for processing realtime audio data. They must be implemented
-in C using the [LJACK C API].
+in C using the [Auproc C API].
 
 LJACK includes the following procesor objects. The implementations can be seen as examples
-on how to implement procesor objects using the [LJACK C API].
+on how to implement procesor objects using the [Auproc C API].
 
+  * [audio mixer](#ljack_new_audio_mixer),     implementation: [audio_mixer.c](../src/audio_mixer.c).
+  * [midi mixer](#ljack_new_midi_mixer),       implementation: [midi_mixer.c](../src/midi_mixer.c).
   * [midi reveicer](#ljack_new_midi_receiver), implementation: [midi_receiver.c](../src/midi_receiver.c).
-  * [midi sender](#ljack_new_midi_sender), implementation: [midi_sender.c](../src/midi_sender.c).
+  * [midi sender](#ljack_new_midi_sender),     implementation: [midi_sender.c](../src/midi_sender.c).
+  * [audio sender](#ljack_new_audio_sender),   implementation: [audio_sender.c](../src/audio_sender.c).
 
 The above builtin processor objects are implementing the following methods:
   
@@ -493,12 +594,13 @@ The above builtin processor objects are implementing the following methods:
 
   <!-- ------------------------------------------- -->
 
-  * <a id="SampleRate">**`             "SampleRate", nframes
+  * <a id="BufferSize">**`             "BufferSize", nframes
     `** </a>
   
-    the engine sample rate changes.
+    the number of frames that are processed in one process cycle has 
+    been changed.
     
-    * *nframes* - new engine sample rate
+    * *nframes* - new number of frames
 
 
   <!-- ------------------------------------------- -->
@@ -530,8 +632,9 @@ End of document.
 [ljack_cairo]:              https://luarocks.org/modules/osch/ljack_cairo
 [ljack_opengl]:             https://luarocks.org/modules/osch/ljack_opengl
 [mtmsg]:                    https://github.com/osch/lua-mtmsg#mtmsg
+[carray]:                   https://github.com/osch/lua-carray
 [light userdata]:           https://www.lua.org/manual/5.4/manual.html#2.1
 [Receiver C API]:           https://github.com/lua-capis/lua-receiver-capi
 [Sender C API]:             https://github.com/lua-capis/lua-sender-capi
-[LJACK C API]:              ../src/ljack_capi.h
+[Auproc C API]:              ../src/auproc_capi.h
 [JACK Client Callbacks]:    https://jackaudio.org/api/group__ClientCallbacks.html

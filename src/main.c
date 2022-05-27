@@ -2,13 +2,22 @@
 
 #define RECEIVER_CAPI_IMPLEMENT_GET_CAPI 1
 
+#define AUPROC_CAPI_IMPLEMENT_SET_CAPI 1
+
 #include "main.h"
 #include "client.h"
 #include "port.h"
+#include "procbuf.h"
 #include "midi_receiver.h"
 #include "midi_sender.h"
+#include "audio_mixer.h"
+#include "midi_mixer.h"
+#include "audio_sender.h"
 #include "receiver_capi.h"
 #include "error.h"
+#include "auproc_capi_impl.h"
+
+
 
 #ifndef LJACK_VERSION
     #error LJACK_VERSION is not defined
@@ -46,6 +55,8 @@ static LogFunc builtin_log_functions[] = {
 
 /* ============================================================================================ */
 
+#define LJACK_LOG_BUFFER_SIZE 2048
+
 typedef struct {
     bool                 isError;
     Lock                 lock;
@@ -54,6 +65,7 @@ typedef struct {
     const receiver_capi* capi;
     receiver_object*     receiver;
     receiver_writer*     writer;
+    char                 logBuffer[LJACK_LOG_BUFFER_SIZE];
 } LogSetting;
 
 
@@ -91,9 +103,8 @@ static void handleLogError(void* ehdata, const char* msg, size_t msglen)
 }
 
 
-static void logToReceiver(LogSetting* s, const char* msg)
+static void logToReceiver_LOCKED(LogSetting* s, const char* msg)
 {
-    async_lock_acquire(&s->lock);
     if (s->receiver) {
         s->capi->addStringToWriter(s->writer, msg, strlen(msg));
         error_handler_data ehdata = {0};
@@ -123,19 +134,37 @@ static void logToReceiver(LogSetting* s, const char* msg)
     } else if (s->logFunc) {
         s->logFunc(msg);
     }
+}
+
+static void logToReceiver1(LogSetting* s, const char* msg)
+{
+    async_lock_acquire(&s->lock);
+    logToReceiver_LOCKED(s, msg);
     async_lock_release(&s->lock);
+}
+
+static bool logToReceiver2(LogSetting* s, const char* fmt, va_list args)
+{
+    async_lock_acquire(&s->lock);
+    int size = vsnprintf(s->logBuffer, LJACK_LOG_BUFFER_SIZE, fmt, args);
+    if (size >= LJACK_LOG_BUFFER_SIZE) {
+        strcpy(s->logBuffer + LJACK_LOG_BUFFER_SIZE - 4, "...");
+    }
+    logToReceiver_LOCKED(s, s->logBuffer);
+    async_lock_release(&s->lock);
+    return true;
 }
 
 /* ============================================================================================ */
 
 static void errorCallback(const char* msg)
 {
-    logToReceiver(&errorLog, msg);
+    logToReceiver1(&errorLog, msg);
 }
 
 static void infoCallback(const char* msg)
 {
-    logToReceiver(&infoLog, msg);
+    logToReceiver1(&infoLog, msg);
 }
 
 
@@ -212,18 +241,40 @@ static int Ljack_set_info_log(lua_State* L)
 
 /* ============================================================================================ */
 
-void ljack_log_error(const char* msg)
+bool ljack_log_errorV(const char* fmt, va_list args)
 {
     assureMutexInitialized(&errorLog);
-    logToReceiver(&errorLog, msg);
+    return logToReceiver2(&errorLog, fmt, args);
+}
+
+void ljack_log_error(const char* fmt, ...)
+{
+    bool finished;
+    do {
+        va_list args;
+        va_start(args, fmt);
+            finished = ljack_log_errorV(fmt, args);
+        va_end(args);
+    } while (!finished);
 }
 
 /* ============================================================================================ */
 
-void ljack_log_info(const char* msg)
+bool ljack_log_infoV(const char* fmt, va_list args)
 {
     assureMutexInitialized(&infoLog);
-    logToReceiver(&infoLog, msg);
+    return logToReceiver2(&infoLog, fmt, args);
+}
+
+void ljack_log_info(const char* fmt, ...)
+{
+    bool finished;
+    do {
+        va_list args;
+        va_start(args, fmt);
+            finished = ljack_log_infoV(fmt, args);
+        va_end(args);
+    } while (!finished);
 }
 
 /* ============================================================================================ */
@@ -232,6 +283,7 @@ static int Ljack_log_error(lua_State* L)
 {
     luaL_checkstring(L, 1);
     ljack_log_error(lua_tostring(L, 1));
+    return 0;
 }
 
 /* ============================================================================================ */
@@ -240,6 +292,7 @@ static int Ljack_log_info(lua_State* L)
 {
     luaL_checkstring(L, 1);
     ljack_log_info(lua_tostring(L, 1));
+    return 0;
 }
 
 /* ============================================================================================ */
@@ -306,19 +359,24 @@ DLL_PUBLIC int luaopen_ljack(lua_State* L)
     lua_pushliteral(L, LJACK_VERSION_STRING);
     lua_setfield(L, module, "_VERSION");
     
-    lua_pushinteger(L, sizeof(jack_default_audio_sample_t));
-    lua_setfield(L, module, "SAMPLE_SIZE");
-    
     lua_checkstack(L, LUA_MINSTACK);
     
-    ljack_client_init_module       (L, module);
-    ljack_port_init_module         (L, module);
-    ljack_midi_receiver_init_module(L, module);
-    ljack_midi_sender_init_module  (L, module);
+    ljack_client_init_module        (L, module);
+    ljack_port_init_module          (L, module);
+    ljack_procbuf_init_module       (L, module);
+
+    auproc_midi_receiver_init_module(L, module);
+    auproc_midi_sender_init_module  (L, module);
+    auproc_audio_mixer_init_module  (L, module);
+    auproc_midi_mixer_init_module   (L, module);
+    auproc_audio_sender_init_module (L, module);
     
     lua_newtable(L);                                   /* -> meta */
     lua_pushstring(L, "ljack");                        /* -> meta, "ljack" */
     lua_setfield(L, -2, "__metatable");                /* -> meta */
+    lua_pushstring(L, "ljack");                        /* -> meta, "ljack" */
+    lua_setfield(L, -2, "__name");                     /* -> meta */
+    auproc_set_capi(L, -1, &auproc_capi_impl);         /* -> meta */
     lua_setmetatable(L, module);                       /* -> */
     
     lua_settop(L, module);

@@ -1,4 +1,4 @@
-#include "midi_sender.h"
+#include "audio_sender.h"
 
 #define AUPROC_CAPI_IMPLEMENT_GET_CAPI 1
 #include "auproc_capi.h"
@@ -8,15 +8,15 @@
 
 /* ============================================================================================ */
 
-static const char* const MIDI_SENDER_CLASS_NAME = "auproc.midi_sender";
+static const char* const AUDIO_SENDER_CLASS_NAME = "auproc.audio_sender";
 
-static const char* ERROR_INVALID_MIDI_SENDER = "invalid auproc.midi_sender";
+static const char* ERROR_INVALID_AUDIO_SENDER = "invalid auproc.audio_sender";
 
 /* ============================================================================================ */
 
-typedef struct MidiSenderUserData MidiSenderUserData;
+typedef struct AudioSenderUserData AudioSenderUserData;
 
-struct MidiSenderUserData
+struct AudioSenderUserData
 {
     const char*        className;
     auproc_processor*  processor;
@@ -27,39 +27,41 @@ struct MidiSenderUserData
     const auproc_capi*  auprocCapi;
     auproc_engine*      auprocEngine;
     
-    auproc_connector*      midiOutConnector;
-    const auproc_midimeth* midiMethods;
+    auproc_connector*       audioOutConnector;
+    const auproc_audiometh* audioMethods;
 
     const sender_capi* senderCapi;
     sender_object*     sender;
     sender_reader*     senderReader;
-    
+
     bool               hasNextEvent;
-    uint32_t           nextEventFrame;
+    uint32_t           eventStartFrame;
+    uint32_t           eventEndFrame;
+    const float*       eventData;
 };
 
 /* ============================================================================================ */
 
-static void setupMidiSenderMeta(lua_State* L);
+static void setupAudioSenderMeta(lua_State* L);
 
-static int pushMidiSenderMeta(lua_State* L)
+static int pushAudioSenderMeta(lua_State* L)
 {
-    if (luaL_newmetatable(L, MIDI_SENDER_CLASS_NAME)) {
-        setupMidiSenderMeta(L);
+    if (luaL_newmetatable(L, AUDIO_SENDER_CLASS_NAME)) {
+        setupAudioSenderMeta(L);
     }
     return 1;
 }
 
 /* ============================================================================================ */
 
-static MidiSenderUserData* checkMidiSenderUdata(lua_State* L, int arg)
+static AudioSenderUserData* checkAudioSenderUdata(lua_State* L, int arg)
 {
-    MidiSenderUserData* udata = luaL_checkudata(L, arg, MIDI_SENDER_CLASS_NAME);
+    AudioSenderUserData* udata = luaL_checkudata(L, arg, AUDIO_SENDER_CLASS_NAME);
     if (udata->auprocCapi) {
         udata->auprocCapi->checkEngineIsNotClosed(L, udata->auprocEngine);
     }
     if (udata->closed) {
-        luaL_error(L, ERROR_INVALID_MIDI_SENDER);
+        luaL_error(L, ERROR_INVALID_AUDIO_SENDER);
         return NULL;
     }
     return udata;
@@ -69,13 +71,13 @@ static MidiSenderUserData* checkMidiSenderUdata(lua_State* L, int arg)
 
 static int processCallback(uint32_t nframes, void* processorData)
 {
-    MidiSenderUserData* udata     = (MidiSenderUserData*) processorData;
-    const auproc_capi*   auprocCapi = udata->auprocCapi;
+    AudioSenderUserData*    udata      = (AudioSenderUserData*) processorData;
+    const auproc_capi*      auprocCapi = udata->auprocCapi;
+    const auproc_audiometh* methods    = udata->audioMethods;
     
-    const auproc_midimeth* methods = udata->midiMethods;
-    auproc_midibuf*        outBuf  = methods->getMidiBuffer(udata->midiOutConnector, nframes);
+    float*  outBuf  = methods->getAudioBuffer(udata->audioOutConnector, nframes);
     
-    methods->clearBuffer(outBuf);
+    memset(outBuf, 0, sizeof(float) * nframes);
     
     const sender_capi* senderCapi = udata->senderCapi;
     sender_object*     sender     = udata->sender;
@@ -89,11 +91,11 @@ nextEvent:
                                                    true /* nonblock */, 0 /* timeout */,
                                                    NULL /* errorHandler */, NULL /* errorHandlerData */);
         if (rc == 0) {
-            sender_capi_value  senderValue;
+            sender_capi_value senderValue;
             senderCapi->nextValueFromReader(reader, &senderValue);
             if (senderValue.type != SENDER_CAPI_TYPE_NONE) {
                 bool hasT = false;
-                uint64_t t;
+                uint32_t t = 0;
                 if (senderValue.type == SENDER_CAPI_TYPE_INTEGER) {
                     hasT = true;
                     t = senderValue.intVal;
@@ -102,12 +104,19 @@ nextEvent:
                     t = senderValue.numVal;
                 }
                 if (hasT) {
-                    uint64_t t0 = auprocCapi->frameTimeToMicroSeconds(udata->auprocEngine, f0);
-                    if (t < t0) {
-                        t = t0;
+                    senderCapi->nextValueFromReader(reader, &senderValue);
+                }
+                if (  senderValue.type == SENDER_CAPI_TYPE_ARRAY
+                  &&  senderValue.arrayVal.type == SENDER_FLOAT
+                  &&  senderValue.arrayVal.elementSize == sizeof(float))
+                {
+                    if (t < f0) {
+                        t = f0;
                     }
                     udata->hasNextEvent = true;
-                    udata->nextEventFrame = auprocCapi->microSecondsToFrameTime(udata->auprocEngine, t); // jack_time_to_frames
+                    udata->eventStartFrame = t;
+                    udata->eventEndFrame   = udata->eventStartFrame + senderValue.arrayVal.elementCount;
+                    udata->eventData       = senderValue.arrayVal.data;
                 } else {
                     senderCapi->clearReader(reader);
                 }
@@ -116,22 +125,27 @@ nextEvent:
     }
 
     if (udata->hasNextEvent) {
-        uint32_t f  = udata->nextEventFrame;
-        if (f < f0) {
-            f = f0;
+        uint32_t s  = udata->eventStartFrame;
+        if (s < f0) {
+            udata->eventData += (f0 - s);
+            s = f0;
         }
-        if (f >= f0 && f < f0 + nframes) {
-            sender_capi_value  senderValue;
-            senderCapi->nextValueFromReader(reader, &senderValue);
-            if (senderValue.type == SENDER_CAPI_TYPE_STRING) {
-                unsigned char* data = methods->reserveMidiEvent(outBuf, f-f0, senderValue.strVal.len);
-                if (data) {
-                    memcpy(data, senderValue.strVal.ptr, senderValue.strVal.len);
-                }
+        if (s < f0 + nframes) {
+            uint32_t e = udata->eventEndFrame;
+            if (e > f0 + nframes) {
+                e = f0 + nframes;
             }
-            senderCapi->clearReader(reader);
-            udata->hasNextEvent = false;
-            goto nextEvent;
+            if (e > s) {
+                memcpy(outBuf + (s - f0), udata->eventData, (e - s) * sizeof(float));
+            }
+            if (e < udata->eventEndFrame) {
+                udata->eventData += (e - s);
+                udata->eventStartFrame = e;
+            } else {
+                senderCapi->clearReader(reader);
+                udata->hasNextEvent = false;
+                goto nextEvent;
+            }
         }
     }
     return 0;
@@ -141,7 +155,7 @@ nextEvent:
 
 static void engineClosedCallback(void* processorData)
 {
-    MidiSenderUserData* udata = (MidiSenderUserData*) processorData;
+    AudioSenderUserData* udata = (AudioSenderUserData*) processorData;
  
     udata->closed    = true;
     udata->activated = false;
@@ -149,7 +163,7 @@ static void engineClosedCallback(void* processorData)
 
 static void engineReleasedCallback(void* processorData)
 {
-    MidiSenderUserData* udata = (MidiSenderUserData*) processorData;
+    AudioSenderUserData* udata = (AudioSenderUserData*) processorData;
  
     udata->closed       = true;
     udata->activated    = false;
@@ -159,14 +173,14 @@ static void engineReleasedCallback(void* processorData)
 
 /* ============================================================================================ */
 
-static int MidiSender_new(lua_State* L)
+static int AudioSender_new(lua_State* L)
 {
     const int conArg  = 1;
     const int sndrArg = 2;
-    MidiSenderUserData* udata = lua_newuserdata(L, sizeof(MidiSenderUserData));
-    memset(udata, 0, sizeof(MidiSenderUserData));
-    udata->className = MIDI_SENDER_CLASS_NAME;
-    pushMidiSenderMeta(L);                                /* -> udata, meta */
+    AudioSenderUserData* udata = lua_newuserdata(L, sizeof(AudioSenderUserData));
+    memset(udata, 0, sizeof(AudioSenderUserData));
+    udata->className = AUDIO_SENDER_CLASS_NAME;
+    pushAudioSenderMeta(L);                                /* -> udata, meta */
     lua_setmetatable(L, -2);                              /* -> udata */
     int versionError = 0;
     const auproc_capi* capi = auproc_get_capi(L, conArg, &versionError);
@@ -203,9 +217,9 @@ static int MidiSender_new(lua_State* L)
     if (!udata->senderReader) {
         return luaL_error(L, "out of memory");
     }
-    const char* processorName = lua_pushfstring(L, "%s: %p", MIDI_SENDER_CLASS_NAME, udata);   /* -> udata, name */
+    const char* processorName = lua_pushfstring(L, "%s: %p", AUDIO_SENDER_CLASS_NAME, udata);   /* -> udata, name */
     
-    auproc_con_reg conReg = {AUPROC_MIDI, AUPROC_OUT, NULL};
+    auproc_con_reg conReg = {AUPROC_AUDIO, AUPROC_OUT, NULL};
     auproc_con_reg_err regError = {0};
     auproc_processor* proc = capi->registerProcessor(L, conArg, 1, engine, processorName, udata, 
                                                         processCallback, NULL, engineClosedCallback, engineReleasedCallback,
@@ -227,7 +241,7 @@ static int MidiSender_new(lua_State* L)
               || regError.errorType == AUPROC_REG_ERR_WRONG_DIRECTION
               || regError.errorType == AUPROC_REG_ERR_WRONG_CONNECTOR_TYPE)
         {
-            return luaL_argerror(L, conArg, "expected MIDI OUT connector");
+            return luaL_argerror(L, conArg, "expected AUDIO OUT connector");
         }
         else {
             return luaL_error(L, "cannot register processor (err=%d)", regError.errorType);
@@ -238,16 +252,16 @@ static int MidiSender_new(lua_State* L)
     udata->activated        = false;
     udata->auprocCapi       = capi;
     udata->auprocEngine     = engine;
-    udata->midiOutConnector = conReg.connector;
-    udata->midiMethods      = conReg.midiMethods;
+    udata->audioOutConnector = conReg.connector;
+    udata->audioMethods      = conReg.audioMethods;
     return 1;
 }
 
 /* ============================================================================================ */
 
-static int MidiSender_release(lua_State* L)
+static int AudioSender_release(lua_State* L)
 {
-    MidiSenderUserData* udata = luaL_checkudata(L, 1, MIDI_SENDER_CLASS_NAME);
+    AudioSenderUserData* udata = luaL_checkudata(L, 1, AUDIO_SENDER_CLASS_NAME);
     udata->closed    = true;
     udata->activated = false;
     if (udata->auprocCapi) {
@@ -270,20 +284,20 @@ static int MidiSender_release(lua_State* L)
 
 /* ============================================================================================ */
 
-static int MidiSender_toString(lua_State* L)
+static int AudioSender_toString(lua_State* L)
 {
-    MidiSenderUserData* udata = luaL_checkudata(L, 1, MIDI_SENDER_CLASS_NAME);
+    AudioSenderUserData* udata = luaL_checkudata(L, 1, AUDIO_SENDER_CLASS_NAME);
 
-    lua_pushfstring(L, "%s: %p", MIDI_SENDER_CLASS_NAME, udata);
+    lua_pushfstring(L, "%s: %p", AUDIO_SENDER_CLASS_NAME, udata);
 
     return 1;
 }
 
 /* ============================================================================================ */
 
-static int MidiSender_activate(lua_State* L)
+static int AudioSender_activate(lua_State* L)
 {
-    MidiSenderUserData* udata = checkMidiSenderUdata(L, 1);
+    AudioSenderUserData* udata = checkAudioSenderUdata(L, 1);
     if (!udata->activated) {    
         udata->auprocCapi->activateProcessor(L, udata->auprocEngine, udata->processor);
         udata->activated = true;
@@ -293,9 +307,9 @@ static int MidiSender_activate(lua_State* L)
 
 /* ============================================================================================ */
 
-static int MidiSender_deactivate(lua_State* L)
+static int AudioSender_deactivate(lua_State* L)
 {
-    MidiSenderUserData* udata = checkMidiSenderUdata(L, 1);
+    AudioSenderUserData* udata = checkAudioSenderUdata(L, 1);
     if (udata->activated) {                                           
         udata->auprocCapi->deactivateProcessor(L, udata->auprocEngine, udata->processor);
         udata->activated = false;
@@ -305,49 +319,59 @@ static int MidiSender_deactivate(lua_State* L)
 
 /* ============================================================================================ */
 
-static const luaL_Reg MidiSenderMethods[] = 
+static int AudioSender_active(lua_State* L)
 {
-    { "activate",    MidiSender_activate },
-    { "deactivate",  MidiSender_deactivate },
-    { "close",       MidiSender_release },
+    AudioSenderUserData* udata = checkAudioSenderUdata(L, 1);
+    lua_pushboolean(L, udata->activated);
+    return 1;
+}
+
+/* ============================================================================================ */
+
+static const luaL_Reg AudioSenderMethods[] = 
+{
+    { "activate",    AudioSender_activate },
+    { "deactivate",  AudioSender_deactivate },
+    { "close",       AudioSender_release },
+    { "active",      AudioSender_active },
     { NULL,          NULL } /* sentinel */
 };
 
-static const luaL_Reg MidiSenderMetaMethods[] = 
+static const luaL_Reg AudioSenderMetaMethods[] = 
 {
-    { "__tostring", MidiSender_toString },
-    { "__gc",       MidiSender_release  },
+    { "__tostring", AudioSender_toString },
+    { "__gc",       AudioSender_release  },
 
     { NULL,       NULL } /* sentinel */
 };
 
 static const luaL_Reg ModuleFunctions[] = 
 {
-    { "new_midi_sender", MidiSender_new },
+    { "new_audio_sender", AudioSender_new },
     { NULL,              NULL } /* sentinel */
 };
 
 /* ============================================================================================ */
 
-static void setupMidiSenderMeta(lua_State* L)
+static void setupAudioSenderMeta(lua_State* L)
 {                                                          /* -> meta */
-    lua_pushstring(L, MIDI_SENDER_CLASS_NAME);        /* -> meta, className */
+    lua_pushstring(L, AUDIO_SENDER_CLASS_NAME);        /* -> meta, className */
     lua_setfield(L, -2, "__metatable");                    /* -> meta */
 
-    luaL_setfuncs(L, MidiSenderMetaMethods, 0);     /* -> meta */
+    luaL_setfuncs(L, AudioSenderMetaMethods, 0);     /* -> meta */
     
-    lua_newtable(L);                                       /* -> meta, MidiSenderClass */
-    luaL_setfuncs(L, MidiSenderMethods, 0);         /* -> meta, MidiSenderClass */
+    lua_newtable(L);                                       /* -> meta, AudioSenderClass */
+    luaL_setfuncs(L, AudioSenderMethods, 0);         /* -> meta, AudioSenderClass */
     lua_setfield (L, -2, "__index");                       /* -> meta */
 }
 
 
 /* ============================================================================================ */
 
-int auproc_midi_sender_init_module(lua_State* L, int module)
+int auproc_audio_sender_init_module(lua_State* L, int module)
 {
-    if (luaL_newmetatable(L, MIDI_SENDER_CLASS_NAME)) {
-        setupMidiSenderMeta(L);
+    if (luaL_newmetatable(L, AUDIO_SENDER_CLASS_NAME)) {
+        setupAudioSenderMeta(L);
     }
     lua_pop(L, 1);
     

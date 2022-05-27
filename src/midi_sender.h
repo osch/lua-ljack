@@ -1,10 +1,8 @@
-#ifndef LJACK_MIDI_SENDER_H
-#define LJACK_MIDI_SENDER_H
+#ifndef AUPROC_MIDI_SENDER_H
+#define AUPROC_MIDI_SENDER_H
 
 #include "util.h"
 
-extern const char* const LJACK_MIDI_SENDER_CLASS_NAME;
+int auproc_midi_sender_init_module(lua_State* L, int module);
 
-int ljack_midi_sender_init_module(lua_State* L, int module);
-
-#endif // LJACK_MIDI_SENDER_H
+#endif // AUPROC_MIDI_SENDER_H

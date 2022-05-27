@@ -2,8 +2,8 @@
 
 #include "util.h"
 
-#define LJACK_CAPI_IMPLEMENT_SET_CAPI 1
-#include "ljack_capi_impl.h"
+#define AUPROC_CAPI_IMPLEMENT_SET_CAPI 1
+#include "auproc_capi_impl.h"
 
 #include "port.h"
 
@@ -48,17 +48,19 @@ PortUserData* ljack_port_register(lua_State* L, jack_client_t* client, const cha
 {
     PortUserData* udata = lua_newuserdata(L, sizeof(PortUserData));
     memset(udata, 0, sizeof(PortUserData));
+    udata->className = LJACK_PORT_CLASS_NAME;
+    
     pushPortMeta(L);         /* -> udata, meta */
     lua_setmetatable(L, -2); /* -> udata */
     const char* typeName = NULL;
     unsigned long flags = 0;
     switch (type) {
-        case MIDI:  typeName = JACK_DEFAULT_MIDI_TYPE;  break;
-        case AUDIO: typeName = JACK_DEFAULT_AUDIO_TYPE; break;
+        case MIDI:  typeName = JACK_DEFAULT_MIDI_TYPE;  udata->isMidi  = true; break;
+        case AUDIO: typeName = JACK_DEFAULT_AUDIO_TYPE; udata->isAudio = true; break;
     }
     switch (dir) {
-        case IN:  flags = JackPortIsInput;  break;
-        case OUT: flags = JackPortIsOutput; break;
+        case IN:  flags = JackPortIsInput;  udata->isInput  = true; break;
+        case OUT: flags = JackPortIsOutput; udata->isOutput = true; break;
     }
     udata->client = client;
     udata->port   = jack_port_register(client, name, typeName, flags, 0);
@@ -67,55 +69,25 @@ PortUserData* ljack_port_register(lua_State* L, jack_client_t* client, const cha
 
 /* ============================================================================================ */
 
-static int getPortFlags(PortUserData* udata) 
-{
-    if (!udata->hasPortFlags) {
-        udata->portFlags = jack_port_flags(udata->port);
-        udata->hasPortFlags = true;
-    }
-    return udata->portFlags;
-}
-
-/* ============================================================================================ */
-
-static void getType(PortUserData* udata) 
-{
-    const char* type = jack_port_type(udata->port);
-    udata->hasType = true;
-    udata->isAudio = (strcmp(type, JACK_DEFAULT_AUDIO_TYPE) == 0);
-    udata->isMidi  = (strcmp(type, JACK_DEFAULT_MIDI_TYPE)  == 0);
-}
-
-/* ============================================================================================ */
-
-static int isAudio(PortUserData* udata) 
-{
-    if (!udata->hasType) {
-        getType(udata);
-    }
-    return udata->isAudio;
-}
-
-/* ============================================================================================ */
-
-static int isMidi(PortUserData* udata) 
-{
-    if (!udata->hasType) {
-        getType(udata);
-    }
-    return udata->isMidi;
-}
-
-/* ============================================================================================ */
-
 PortUserData* ljack_port_create(lua_State* L, jack_client_t* client, jack_port_t* port)
 {
     PortUserData* udata = lua_newuserdata(L, sizeof(PortUserData));
     memset(udata, 0, sizeof(PortUserData));
+    udata->className = LJACK_PORT_CLASS_NAME;
+
     pushPortMeta(L);         /* -> udata, meta */
     lua_setmetatable(L, -2); /* -> udata */
     udata->client = client;
     udata->port   = port;
+
+    const char* type = jack_port_type(port);
+    udata->isMidi  = (strcmp(type, JACK_DEFAULT_MIDI_TYPE)  == 0);
+    udata->isAudio = (strcmp(type, JACK_DEFAULT_AUDIO_TYPE) == 0);
+
+    int flags = jack_port_flags(udata->port);
+    udata->isInput  = flags & JackPortIsInput;
+    udata->isOutput = flags & JackPortIsOutput;
+
     return udata;
 }
 
@@ -150,48 +122,14 @@ static int LjackPort_release(lua_State* L)
 static PortUserData* checkPortUdata(lua_State* L, int arg)
 {
     PortUserData* udata = luaL_checkudata(L, arg, LJACK_PORT_CLASS_NAME);
+    ljack_client_check_is_valid(L, udata->clientUserData);
     if (!udata->client) {
         luaL_error(L, LJACK_ERROR_INVALID_PORT);
-        return NULL;
-    }
-    if (atomic_get(udata->shutdownReceived)) {
-        ljack_handle_client_shutdown(L, udata->clientUserData);
-        luaL_error(L, "error: jack client shutdown");
         return NULL;
     }
     return udata;
 }
 
-
-/* ============================================================================================ */
-
-ljack_capi_port_err ljack_port_check_port_req(ClientUserData*      clientUdata,
-                                              PortUserData*        udata,
-                                              ljack_capi_reg_port* portReg)
-{
-    if (!udata || !udata->client) {
-        return LJACK_CAPI_PORT_ERR_PORT_INVALID;
-    }
-    if (udata->clientUserData != clientUdata) {
-        return LJACK_CAPI_PORT_ERR_CLIENT_MISMATCH;
-    }
-    if (!jack_port_is_mine(udata->client, udata->port)) {
-        return LJACK_CAPI_PORT_ERR_PORT_NOT_MINE;
-    }
-    if (portReg->portDirection == LJACK_CAPI_PORT_IN && !(getPortFlags(udata) & JackPortIsInput)) {
-        return LJACK_CAPI_PORT_ERR_IN_EXPECTED;
-    }
-    if (portReg->portDirection == LJACK_CAPI_PORT_OUT && !(getPortFlags(udata) & JackPortIsOutput)) {
-        return LJACK_CAPI_PORT_ERR_OUT_EXPECTED;
-    }
-    if (portReg->portType == LJACK_CAPI_PORT_AUDIO && !isAudio(udata)) {
-        return LJACK_CAPI_PORT_ERR_AUDIO_EXPECTED;
-    }
-    if (portReg->portType == LJACK_CAPI_PORT_MIDI && !isMidi(udata)) {
-        return LJACK_CAPI_PORT_ERR_MIDI_EXPECTED;
-    }
-    return LJACK_CAPI_PORT_NO_ERROR;
-}
 
 /* ============================================================================================ */
 
@@ -238,17 +176,39 @@ static int LjackPort_unregister(lua_State* L)
 
 /* ============================================================================================ */
 
+static int LjackPort_id(lua_State* L)
+{
+    PortUserData* udata = luaL_checkudata(L, 1, LJACK_PORT_CLASS_NAME);
+    lua_pushfstring(L, "%p", udata);
+    return 1;
+}
+
+/* ============================================================================================ */
+
+static int LjackPort_jack_id(lua_State* L)
+{
+    PortUserData* udata = checkPortUdata(L, 1);
+    
+    lua_pushfstring(L, "%p", (void*)udata->port);
+    return 1;
+}
+
+/* ============================================================================================ */
+
 static int LjackPort_toString(lua_State* L)
 {
     PortUserData* udata = luaL_checkudata(L, 1, LJACK_PORT_CLASS_NAME);
+
+    ljack_client_handle_shutdown(udata->clientUserData);
+
     jack_port_t* port = udata->port;
     if (port) {
         ljack_util_quote_string(L, jack_port_name(port));                 /* -> quoted */
         lua_pushfstring(L, "%s: %p (name=%s)", LJACK_PORT_CLASS_NAME, 
-                                               port, 
+                                               udata, 
                                                lua_tostring(L, -1));      /* -> quoted, rslt */
     } else {
-        lua_pushfstring(L, "%s: invalid", LJACK_PORT_CLASS_NAME);         /* -> rslt */
+        lua_pushfstring(L, "%s: %p", LJACK_PORT_CLASS_NAME, udata);       /* -> rslt */
     }
     return 1;
 }
@@ -316,7 +276,7 @@ static int LjackPort_is_mine(lua_State* L)
 static int LjackPort_is_input(lua_State* L)
 {
     PortUserData* udata = checkPortUdata(L, 1);
-    lua_pushboolean(L, getPortFlags(udata) & JackPortIsInput);
+    lua_pushboolean(L, udata->isInput);
     return 1;
 }
 
@@ -325,7 +285,7 @@ static int LjackPort_is_input(lua_State* L)
 static int LjackPort_is_output(lua_State* L)
 {
     PortUserData* udata = checkPortUdata(L, 1);
-    lua_pushboolean(L, getPortFlags(udata) & JackPortIsOutput);
+    lua_pushboolean(L, udata->isOutput);
     return 1;
 }
 
@@ -334,7 +294,7 @@ static int LjackPort_is_output(lua_State* L)
 static int LjackPort_is_midi(lua_State* L)
 {
     PortUserData* udata = checkPortUdata(L, 1);
-    lua_pushboolean(L, isMidi(udata));
+    lua_pushboolean(L, udata->isMidi);
     return 1;
 }
 
@@ -343,7 +303,7 @@ static int LjackPort_is_midi(lua_State* L)
 static int LjackPort_is_audio(lua_State* L)
 {
     PortUserData* udata = checkPortUdata(L, 1);
-    lua_pushboolean(L, isAudio(udata));
+    lua_pushboolean(L, udata->isAudio);
     return 1;
 }
 
@@ -413,9 +373,8 @@ static int LjackPort_connect(lua_State* L)
     PortUserData* udata = checkPortUdata(L, arg++);
     const char*   other = ljack_port_name_from_arg(L, arg++);
     
-    int flags = getPortFlags(udata);
     int rc;
-    if (flags & JackPortIsOutput) {
+    if (udata->isOutput) {
         rc = jack_connect(udata->client, jack_port_name(udata->port), other);
     } else {
         rc = jack_connect(udata->client, other, jack_port_name(udata->port));
@@ -432,9 +391,8 @@ static int LjackPort_disconnect(lua_State* L)
     PortUserData* udata = checkPortUdata(L, arg++);
     const char*   other = ljack_port_name_from_arg(L, arg++);
     
-    int flags = getPortFlags(udata);
     int rc;
-    if (flags & JackPortIsOutput) {
+    if (udata->isOutput) {
         rc = jack_disconnect(udata->client, jack_port_name(udata->port), other);
     } else {
         rc = jack_disconnect(udata->client, other, jack_port_name(udata->port));
@@ -460,6 +418,8 @@ static int LjackPort_connected_to(lua_State* L)
 
 static const luaL_Reg LjackPortMethods[] = 
 {
+    { "id",               LjackPort_id              },
+    { "jack_id",          LjackPort_jack_id         },
     { "unregister",       LjackPort_unregister      },
     { "name",             LjackPort_name            },
     { "short_name",       LjackPort_short_name      },
@@ -503,7 +463,7 @@ static void setupPortMeta(lua_State* L)
     lua_newtable(L);                                   /* -> meta, PortClass */
     luaL_setfuncs(L, LjackPortMethods, 0);           /* -> meta, PortClass */
     lua_setfield (L, -2, "__index");                   /* -> meta */
-    ljack_set_capi(L, -1, &ljack_capi_impl);
+    auproc_set_capi(L, -1, &auproc_capi_impl);
 }
 
 

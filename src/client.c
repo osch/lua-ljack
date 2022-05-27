@@ -1,20 +1,23 @@
 #include <jack/jack.h>
+#include <jack/ringbuffer.h>
 
 #include "util.h"
 
 #define RECEIVER_CAPI_IMPLEMENT_GET_CAPI 1
 #include "receiver_capi.h"
 
-#define LJACK_CAPI_IMPLEMENT_SET_CAPI 1
-#include "ljack_capi_impl.h"
+#define AUPROC_CAPI_IMPLEMENT_SET_CAPI 1
+#include "auproc_capi_impl.h"
 
 #include "client.h"
 #include "client_intern.h"
 #include "port.h"
+#include "procbuf.h"
 
-typedef struct LjackPortUserData         PortUserData;
-typedef struct LjackClientUserData       ClientUserData;
-typedef struct LjackClientUserData       ClientUserData;
+typedef struct LjackPortUserData     PortUserData;
+typedef struct LjackProcBufUserData  ProcBufUserData;
+typedef struct LjackClientUserData   ClientUserData;
+typedef struct LjackClientUserData   ClientUserData;
 
 /* ============================================================================================ */
 
@@ -66,6 +69,7 @@ static int LjackClient_open(lua_State* L)
     
     ClientUserData* udata = lua_newuserdata(L, sizeof(ClientUserData));
     memset(udata, 0, sizeof(ClientUserData));
+    udata->className = LJACK_CLIENT_CLASS_NAME;
     udata->weakTableRef   = LUA_REFNIL;
     udata->strongTableRef = LUA_REFNIL;
     async_mutex_init(&udata->processMutex);
@@ -97,6 +101,10 @@ static int LjackClient_open(lua_State* L)
     jack_status_t status = {0};
     udata->client = jack_client_open(clientName, JackNullOption, &status);
     if (udata->client) {
+        udata->sampleRate      = jack_get_sample_rate(udata->client);
+        udata->bufferSize      = jack_get_buffer_size(udata->client);
+        udata->audioBufferSize = jack_port_type_get_buffer_size(udata->client, JACK_DEFAULT_AUDIO_TYPE);
+        udata->midiBufferSize  = jack_port_type_get_buffer_size(udata->client, JACK_DEFAULT_MIDI_TYPE);
         ljack_client_intern_register_callbacks(udata);
     }
     if (!udata->client) {
@@ -107,25 +115,14 @@ static int LjackClient_open(lua_State* L)
 
 /* ============================================================================================ */
 
-static void internalClientClose(lua_State* L, ClientUserData* udata)
+static void internalClientClose(ClientUserData* udata)
 {
     if (udata->client) {
-        if (udata->procRegList) {
-            for (int i = 0; i < udata->procRegCount; ++i) {
-                LjackProcReg* reg = udata->procRegList + i;
-                if (reg->clientClosedCallback) {
-                    reg->clientClosedCallback(L, reg->processorData);
-                }
-                ljack_client_intern_release_proc_reg(L, reg);
-            }
-            free(udata->procRegList);
-            udata->procRegList = NULL;
-            udata->activatedProcRegList = NULL;
-            udata->procRegCount = 0;
+        if (udata->activated) {
+            async_mutex_lock  (&udata->processMutex);
+                ljack_client_intern_activate_proc_list_LOCKED(udata, NULL);
+            async_mutex_unlock(&udata->processMutex);
         }
-        jack_client_close(udata->client);
-        udata->client = NULL;
-        udata->activated = NULL;
         {
             PortUserData* p = udata->firstPortUserData;
             while (p) {
@@ -134,21 +131,32 @@ static void internalClientClose(lua_State* L, ClientUserData* udata)
                 p = p->nextPortUserData;
             }
         }
+        {
+            ProcBufUserData* p = udata->firstProcBufUserData;
+            while (p) {
+                p->jackClient = NULL;
+                p = p->nextProcBufUserData;
+            }
+        }
+        for (int i = 0; i < udata->procRegCount; ++i) {
+            LjackProcReg* reg = udata->procRegList[i];
+            if (reg->engineClosedCallback) {
+                reg->engineClosedCallback(reg->processorData);
+            }
+        }
+        jack_client_close(udata->client);
+        udata->client = NULL;
+        udata->activated = false;
     }
 }
-
-void ljack_handle_client_shutdown(lua_State* L, ClientUserData* udata)
-{
-    if (udata) {
-        internalClientClose(L, udata);
-    }
-}
-
 
 static int LjackClient_release(lua_State* L)
 {
     ClientUserData* udata = luaL_checkudata(L, 1, LJACK_CLIENT_CLASS_NAME);
     if (!udata->closed) {
+        if (udata->client) {
+            internalClientClose(udata);
+        }
         if (udata->weakTableRef != LUA_REFNIL) {
             luaL_unref(L, LUA_REGISTRYINDEX, udata->weakTableRef);
             udata->weakTableRef = LUA_REFNIL;
@@ -157,11 +165,25 @@ static int LjackClient_release(lua_State* L)
             luaL_unref(L, LUA_REGISTRYINDEX, udata->strongTableRef);
             udata->strongTableRef = LUA_REFNIL;
         }
-        if (udata->client) {
-            internalClientClose(L, udata);
+        if (udata->procRegList) {
+            for (int i = 0; i < udata->procRegCount; ++i) {
+                LjackProcReg* reg = udata->procRegList[i];
+                if (reg->engineReleasedCallback) {
+                    reg->engineReleasedCallback(reg->processorData);
+                }
+                ljack_client_intern_release_proc_reg(L, reg);
+            }
+            free(udata->procRegList);
+            udata->procRegList = NULL;
+            udata->activeProcRegList = NULL;
+            udata->confirmedProcRegList = NULL;
+            udata->procRegCount = 0;
         }
         while (udata->firstPortUserData) {
             ljack_port_release(L, udata->firstPortUserData);
+        }
+        while (udata->firstProcBufUserData) {
+            ljack_procbuf_release(L, udata->firstProcBufUserData);
         }
         if (udata->receiver_writer) {
             udata->receiver_capi->freeWriter(udata->receiver_writer);
@@ -188,13 +210,28 @@ int ljack_client_push_client_object(lua_State* L, ClientUserData* udata)
 
 /* ============================================================================================ */
 
-int ljack_client_check_shutdown(lua_State* L, ClientUserData* udata)
+void ljack_client_handle_shutdown(ClientUserData* udata)
 {
-    if (atomic_get(&udata->shutdownReceived)) {
-        ljack_handle_client_shutdown(L, udata);
-        return luaL_error(L, "error: jack client shutdown");
-    } else {
-        return 0;
+    if (udata && udata->client && atomic_get(&udata->shutdownReceived)) {
+        internalClientClose(udata);
+    }
+}
+
+/* ============================================================================================ */
+
+void ljack_client_check_is_valid(lua_State* L, ClientUserData* udata)
+{
+    if (udata && atomic_get(&udata->shutdownReceived)) {
+        if (udata->client) {
+            internalClientClose(udata);
+        }
+        if (atomic_get(&udata->severeProcessingError)) {
+            luaL_error(L, "error: jack client invalidated because of severe processing error");
+        } else {
+            luaL_error(L, "error: jack client received shutdown");
+        }
+    } else if (!udata || !udata->client) {
+        luaL_error(L, LJACK_ERROR_INVALID_CLIENT);
     }
 }
 
@@ -203,11 +240,7 @@ int ljack_client_check_shutdown(lua_State* L, ClientUserData* udata)
 static ClientUserData* checkClientUdata(lua_State* L, int arg)
 {
     ClientUserData* udata = luaL_checkudata(L, arg, LJACK_CLIENT_CLASS_NAME);
-    if (!udata->client) {
-        luaL_error(L, LJACK_ERROR_INVALID_CLIENT);
-        return NULL;
-    }
-    ljack_client_check_shutdown(L, udata);
+    ljack_client_check_is_valid(L, udata);
     return udata;
 }
 
@@ -218,7 +251,7 @@ static int LjackClient_activate(lua_State* L)
     ClientUserData* udata = checkClientUdata(L, 1);
 
     if (jack_activate(udata->client) != 0) {
-        internalClientClose(L, udata);
+        internalClientClose(udata);
         return luaL_error(L, "error: cannot activate client");
     }
     udata->activated = true;
@@ -232,7 +265,7 @@ static int LjackClient_deactivate(lua_State* L)
     ClientUserData* udata = checkClientUdata(L, 1);
 
     if (jack_deactivate(udata->client) != 0) {
-        internalClientClose(L, udata);
+        internalClientClose(udata);
         return luaL_error(L, "error: cannot deactivate client");
     }
     udata->activated = false;
@@ -241,23 +274,45 @@ static int LjackClient_deactivate(lua_State* L)
 
 /* ============================================================================================ */
 
+static int LjackClient_id(lua_State* L)
+{
+    ClientUserData* udata = luaL_checkudata(L, 1, LJACK_CLIENT_CLASS_NAME);
+    lua_pushfstring(L, "%p", udata);
+    return 1;
+}
+
+/* ============================================================================================ */
+
+static int LjackClient_jack_id(lua_State* L)
+{
+    ClientUserData* udata = checkClientUdata(L, 1);
+    
+    lua_pushfstring(L, "%p", udata->client);
+    return 1;
+}
+
+/* ============================================================================================ */
+
 static int LjackClient_toString(lua_State* L)
 {
     ClientUserData* udata = luaL_checkudata(L, 1, LJACK_CLIENT_CLASS_NAME);
+    
+    ljack_client_handle_shutdown(udata);
+    
     if (udata->client) {
         ljack_util_quote_string(L, jack_get_client_name(udata->client));  /* -> quoted */
         lua_pushfstring(L, "%s: %p (name=%s)", LJACK_CLIENT_CLASS_NAME, 
-                                               udata->client, 
+                                               udata, 
                                                lua_tostring(L, -1));      /* -> quoted, rslt */
     } else {
-        lua_pushfstring(L, "%s: invalid", LJACK_CLIENT_CLASS_NAME);       /* -> rslt */
+        lua_pushfstring(L, "%s: %p", LJACK_CLIENT_CLASS_NAME, udata);     /* -> rslt */
     }
     return 1;
 }
 
 /* ============================================================================================ */
 
-static int LjackClient_get_client_name(lua_State* L)
+static int LjackClient_name(lua_State* L)
 {
     ClientUserData* udata = checkClientUdata(L, 1);
     const char* name = jack_get_client_name(udata->client);
@@ -312,6 +367,21 @@ static const char* const portDirections[] =
     "OUT",
     NULL
 };
+
+/* ============================================================================================ */
+
+static void connectProcBufUserData(lua_State* L, ClientUserData* udata, ProcBufUserData* procBufUserData)
+{                                                                /* -> procBufUserData */
+    procBufUserData->nextProcBufUserData = udata->firstProcBufUserData;
+    if (udata->firstProcBufUserData) {
+        udata->firstProcBufUserData->prevNextProcBufUserData = &procBufUserData->nextProcBufUserData;
+    }
+    udata->firstProcBufUserData = procBufUserData;
+
+    procBufUserData->clientUserData = udata;
+    procBufUserData->prevNextProcBufUserData = &udata->firstProcBufUserData;
+    procBufUserData->shutdownReceived = &udata->shutdownReceived;
+}
 
 /* ============================================================================================ */
 
@@ -543,6 +613,15 @@ static int LjackClient_get_time(lua_State* L)
 
 /* ============================================================================================ */
 
+static int LjackClient_frame_time(lua_State* L)
+{
+    ClientUserData* udata = checkClientUdata(L, 1);
+    lua_pushinteger(L, jack_frame_time(udata->client));
+    return 1;
+}
+
+/* ============================================================================================ */
+
 static int LjackClient_get_sample_rate(lua_State* L)
 {
     ClientUserData* udata = checkClientUdata(L, 1);
@@ -560,6 +639,19 @@ static int LjackClient_get_buffer_size(lua_State* L)
 
 /* ============================================================================================ */
 
+static int LjackClient_set_buffer_size(lua_State* L)
+{
+    ClientUserData* udata = checkClientUdata(L, 1);
+    jack_nframes_t newSize = luaL_checkinteger(L, 2);
+    int rc = jack_set_buffer_size(udata->client, newSize);
+    if (rc != 0) {
+        return luaL_error(L, "error setting buffer size");
+    }
+    return 0;
+}
+
+/* ============================================================================================ */
+
 static int LjackClient_cpu_load(lua_State* L)
 {
     ClientUserData* udata = checkClientUdata(L, 1);
@@ -569,25 +661,66 @@ static int LjackClient_cpu_load(lua_State* L)
 
 /* ============================================================================================ */
 
+static int LjackClient_new_procbuf(lua_State* L)
+{
+    int arg = 1;
+    ClientUserData* clientUdata = checkClientUdata(L, arg++);
+    int type = luaL_checkoption(L, arg, "AUDIO", portTypes);
+
+    ProcBufUserData* procBufUdata = ljack_procbuf_create(L);
+    
+    switch (type) {
+        case MIDI:  procBufUdata->isMidi  = true; break;
+        case AUDIO: procBufUdata->isAudio = true; break;
+    }
+    async_mutex_lock(&clientUdata->processMutex);
+    {
+        size_t size = procBufUdata->isAudio ? clientUdata->audioBufferSize 
+                                            : clientUdata->midiBufferSize;
+        procBufUdata->ringBuffer = jack_ringbuffer_create(size);
+        if (procBufUdata->ringBuffer) {
+            jack_ringbuffer_mlock(procBufUdata->ringBuffer);
+            ljack_procbuf_clear_midi_events(procBufUdata);
+        } else {
+            async_mutex_unlock(&clientUdata->processMutex);
+            return luaL_error(L, "error allocating process buffer");
+        }
+        connectProcBufUserData(L, clientUdata, procBufUdata);
+        procBufUdata->processMutex = &clientUdata->processMutex;
+        procBufUdata->jackClient = clientUdata->client;
+    }
+    async_mutex_unlock(&clientUdata->processMutex);
+
+    return 1;
+}
+
+/* ============================================================================================ */
+
 static const luaL_Reg LjackClientMethods[] = 
 {
-    { "close",               LjackClient_release         },
-    { "activate",            LjackClient_activate        },
-    { "deactivate",          LjackClient_deactivate      },
-    { "get_client_name",     LjackClient_get_client_name },
-    { "port_name",           LjackClient_port_name       },
-    { "port_short_name",     LjackClient_port_short_name },
-    { "port_register",       LjackClient_port_register   },
-    { "port_by_name",        LjackClient_port_by_name    },
-    { "port_by_id",          LjackClient_port_by_id      },
-    { "get_ports",           LjackClient_get_ports       },
-    { "connect",             LjackClient_connect         },
-    { "is_connected",        LjackClient_is_connected    },
-    { "get_connections",     LjackClient_get_connections },
-    { "get_time",            LjackClient_get_time        },
-    { "get_sample_rate",     LjackClient_get_sample_rate },
-    { "get_buffer_size",     LjackClient_get_buffer_size },
-    { "cpu_load",            LjackClient_cpu_load        },
+    { "id",                  LjackClient_id                 },
+    { "jack_id",             LjackClient_jack_id            },
+    { "name",                LjackClient_name               },
+    { "close",               LjackClient_release            },
+    { "activate",            LjackClient_activate           },
+    { "deactivate",          LjackClient_deactivate         },
+    { "port_name",           LjackClient_port_name          },
+    { "port_short_name",     LjackClient_port_short_name    },
+    { "port_register",       LjackClient_port_register      },
+    { "port_by_name",        LjackClient_port_by_name       },
+    { "port_by_id",          LjackClient_port_by_id         },
+    { "get_ports",           LjackClient_get_ports          },
+    { "connect",             LjackClient_connect            },
+    { "disconnect",          LjackClient_disconnect         },
+    { "is_connected",        LjackClient_is_connected       },
+    { "get_connections",     LjackClient_get_connections    },
+    { "get_time",            LjackClient_get_time           },
+    { "frame_time",          LjackClient_frame_time         },
+    { "get_sample_rate",     LjackClient_get_sample_rate    },
+    { "get_buffer_size",     LjackClient_get_buffer_size    },
+    { "set_buffer_size",     LjackClient_set_buffer_size    },
+    { "cpu_load",            LjackClient_cpu_load           },
+    { "new_process_buffer",  LjackClient_new_procbuf        },
 
     { NULL,         NULL } /* sentinel */
 };
@@ -619,7 +752,7 @@ static void setupClientMeta(lua_State* L)
     lua_newtable(L);                                   /* -> meta, ClientClass */
     luaL_setfuncs(L, LjackClientMethods, 0);           /* -> meta, ClientClass */
     lua_setfield (L, -2, "__index");                   /* -> meta */
-    ljack_set_capi(L, -1, &ljack_capi_impl);
+    auproc_set_capi(L, -1, &auproc_capi_impl);
 }
 
 

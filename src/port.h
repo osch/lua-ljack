@@ -5,7 +5,7 @@
 
 #include "util.h"
 #include "client.h"
-#include "ljack_capi.h"
+#include "auproc_capi.h"
 
 extern const char* const LJACK_PORT_CLASS_NAME;
 
@@ -13,15 +13,15 @@ struct LjackClientUserData;
 
 typedef struct LjackPortUserData
 {
+    const char*          className;
     jack_client_t*       client;
     jack_port_t*         port;
 
-    bool                 hasPortFlags;
-    int                  portFlags;
+    bool                 isInput;
+    bool                 isOutput;
 
-    bool                 hasType;
-    bool                 isAudio;
     bool                 isMidi;
+    bool                 isAudio;
     
     int              procUsageCounter;
     AtomicCounter*   shutdownReceived;
@@ -47,10 +47,6 @@ LjackPortUserData* ljack_port_register(lua_State* L, jack_client_t* client, cons
 LjackPortUserData* ljack_port_create(lua_State* L, jack_client_t* client, jack_port_t* port);
 
 void ljack_port_release(lua_State* L, LjackPortUserData* udata);
-
-ljack_capi_port_err ljack_port_check_port_req(LjackClientUserData* clientUdata,
-                                              LjackPortUserData*   udata,
-                                              ljack_capi_reg_port* portReg);
 
 int ljack_port_init_module(lua_State* L, int module);
 

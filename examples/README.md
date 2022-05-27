@@ -33,3 +33,11 @@
      [midi sender object](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_midi_sender).
      
 <!-- ---------------------------------------------------------------------------------------- -->
+
+   * [`example05.lua`](./example05.lua)
+     
+     This example generates audio samples from Lua script code on the main thread. 
+     This example demonstrates the usage of a 
+     [audio sender object](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_audio_sender).
+     
+<!-- ---------------------------------------------------------------------------------------- -->
