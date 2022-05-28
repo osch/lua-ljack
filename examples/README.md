@@ -50,6 +50,16 @@
      [audio sender objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_audio_sender)
      and
      [audio mixer objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_audio_mixer)
-     can be connected using [process buffer objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#client_new_process_buffer)
+     can be connected using [AUDIO process buffer objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#client_new_process_buffer)
      
+<!-- ---------------------------------------------------------------------------------------- -->
+
+   * [`example07.lua`](./example07.lua)
+     
+     This example demonstrates how 
+     [midi sender objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_midi_sender)
+     and
+     [midi mixer objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_midi_mixer)
+     can be connected using [MIDI process buffer objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#client_new_process_buffer)
+
 <!-- ---------------------------------------------------------------------------------------- -->

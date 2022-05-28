@@ -15,6 +15,7 @@
         * [ljack.new_midi_mixer()](#ljack_new_midi_mixer)
         * [ljack.new_midi_receiver()](#ljack_new_midi_receiver)
         * [ljack.new_midi_sender()](#ljack_new_midi_sender)
+        * [ljack.new_audio_sender()](#ljack_new_audio_sender)
    * [Client Methods](#client-methods)
         * [client:name()](#client_name)
         * [client:activate()](#client_activate)
@@ -136,7 +137,7 @@ to be implemented in native C using the [Auproc C API].
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="ljack_new_audio_mixer">**`  ljack.new_audio_mixer(audioIn[, audioIn]*, audioOut, sender)
+* <a id="ljack_new_audio_mixer">**`  ljack.new_audio_mixer(audioIn[, audioIn]*, audioOut, mixCtrl)
   `**</a>
 
   Returns a new audio mixer object. The audio mixer object is a 
@@ -144,10 +145,10 @@ to be implemented in native C using the [Auproc C API].
   
   * *audioIn*  - one or more [connector objects](#connector-objects) of type *AUDIO IN*.
   * *audioOut* - [connector object](#connector-objects) of type *AUDIO OUT*.
-  * *sender*   - optional sender object for controlling the mixer, must implement 
+  * *mixCtrl*  - optional sender object for controlling the mixer, must implement 
                  the [Sender C API], e.g. a [mtmsg] buffer.
   
-  The mixer can be controlled by sending messages with the given *sender* object to the mixer.
+  The mixer can be controlled by sending messages with the given *mixCtrl* object to the mixer.
   Each message should contain subsequent pairs of numbers: the first number, an integer, 
   is the number of the *audioIn*  connector (1 means *first connector*), the second number 
   of each pair, a float, is the amplification factor that is applied to the corresponding 
@@ -158,8 +159,22 @@ to be implemented in native C using the [Auproc C API].
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="ljack_new_midi_mixer">**`  ljack.new_midi_mixer(connector, connector, [connector,]* sender)
+* <a id="ljack_new_midi_mixer">**`  ljack.new_midi_mixer(midiIn[, midiIn]*, midiOut, mixCtrl)
   `**</a>
+
+  * *midiIn*   - one or more [connector objects](#connector-objects) of type *MIDI IN*.
+  * *midiOut*  - [connector object](#connector-objects) of type *MIDI OUT*.
+  * *mixCtrl*  - optional sender object for controlling the mixer, must implement 
+                 the [Sender C API], e.g. a [mtmsg] buffer.
+  
+  The mixer can be controlled by sending messages with the given *mixCtrl* object to the mixer.
+  Each message should contain subsequent triplets of integers: the first integer 
+  is the number of the *midiIn*  connector (1 means *first connector*), the second integer 
+  of each triplet is the source channel (1-16) that is to be mapped and the third integer is 
+  the new channel number (1-16) that the source channel events are mapped to or may be 
+  0 to discard events for the given source channel.
+  
+  See also [example07.lua](../examples/example07.lua).
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
@@ -444,7 +459,8 @@ to be implemented in native C using the [Auproc C API].
   * *type*       - optional string value, must be "AUDIO" or "MIDI". Default value is "AUDIO" 
                    if this parameter is not given.
   
-  See also [example06.lua](../examples/example06.lua).
+  See also [example06.lua](../examples/example06.lua) for AUDIO process buffer
+  or [example07.lua](../examples/example07.lua) for MIDI process buffer usage.
 
 <!-- ---------------------------------------------------------------------------------------- -->
 ##   Port Methods

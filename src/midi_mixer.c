@@ -124,9 +124,9 @@ static int processCallback(uint32_t nframes, void* processorData)
                             toChannel = senderValue.intVal - 1;
                         }
                         if (hasValue) {
-                            if (  0 <= inputIndex && inputIndex < n
-                              &&  0 <= fromChannel && fromChannel < 16
-                              &&  0 <= toChannel && toChannel < 16)
+                            if (  0  <= inputIndex && inputIndex < n
+                              &&  0  <= fromChannel && fromChannel < 16
+                              &&  -1 <= toChannel && toChannel < 16)
                             {
                                 inputs[inputIndex].channelMap[fromChannel] = toChannel;
                                 goto nextValues;
@@ -139,7 +139,7 @@ static int processCallback(uint32_t nframes, void* processorData)
         }
     }
     {
-        const auproc_capi*          capi       = udata->auprocCapi;
+        const auproc_capi*     capi       = udata->auprocCapi;
             
         const auproc_midimeth* outMethods = udata->outMethods;
         auproc_midibuf*        outBuf     = outMethods->getMidiBuffer(udata->outConnector, nframes);
@@ -174,13 +174,15 @@ static int processCallback(uint32_t nframes, void* processorData)
                 InputConnection* input = inputs + next;
                 auproc_midi_event* event = &input->event;
                 if (event->size > 0) {
-                    unsigned char* data = outMethods->reserveMidiEvent(outBuf, event->time, event->size);
-                    if (data) {
-                        memcpy(data, event->buffer, event->size);
-                        unsigned char firstByte = data[0];
-                        int channel = firstByte & 0xF;
+                    unsigned char firstByte = event->buffer[0];
+                    int channel = firstByte & 0xF;
                         channel = input->channelMap[channel];
-                        data[0] = (firstByte & 0xF0) | (channel & 0xF);
+                    if (channel >= 0) {
+                        unsigned char* data = outMethods->reserveMidiEvent(outBuf, event->time, event->size);
+                        if (data) {
+                            data[0] = (firstByte & 0xF0) | (channel & 0xF);
+                            memcpy(data + 1, event->buffer + 1, event->size - 1);
+                        }
                     }
                 }
                 if (input->eventIndex < input->eventCount) {
