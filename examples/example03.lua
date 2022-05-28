@@ -86,15 +86,15 @@ local function parseMidiEvent(event)
 end
 
 local statusToString = {
-    [0x8] = function(t, c, v1, v2) return format("%8.3f %2d %-15s %3d %3d", t/1000000, c, "Note Off", v1, v2) end,
-    [0x9] = function(t, c, v1, v2) return format("%8.3f %2d %-15s %3d %3d", t/1000000, c, "Note On",  v1, v2) end,
-    [0xA] = function(t, c, v1, v2) return format("%8.3f %2d %-15s %3d %3d", t/1000000, c, "Poly Aftertouch",  v1, v2) end,
-    [0xB] = function(t, c, v1, v2) return format("%8.3f %2d %-15s %3d %3d", t/1000000, c, "Control Change",  v1, v2) end,
+    [0x8] = function(t, c, v1, v2) return format("%11d %2d %-15s %3d %3d", t, c, "Note Off", v1, v2) end,
+    [0x9] = function(t, c, v1, v2) return format("%11d %2d %-15s %3d %3d", t, c, "Note On",  v1, v2) end,
+    [0xA] = function(t, c, v1, v2) return format("%11d %2d %-15s %3d %3d", t, c, "Poly Aftertouch",  v1, v2) end,
+    [0xB] = function(t, c, v1, v2) return format("%11d %2d %-15s %3d %3d", t, c, "Control Change",  v1, v2) end,
 
-    [0xC] = function(t, c, v1, v2) return format("%8.3f %2d %-15s %3d",     t/1000000, c, "Program Change",  v1) end,
-    [0xD] = function(t, c, v1, v2) return format("%8.3f %2d %-15s %3d",     t/1000000, c, "Chan Aftertouch",  v1) end,
-    [0xE] = function(t, c, v1, v2) return format("%8.3f %2d %-15s %7d",     t/1000000, c, "Pitch Bend",  v1) end,
-    [0xF] = function(t, c, v1, v2) return format("%8.3f %2d %-15s %3d",     t/1000000, c, "System Message",  v1) end,
+    [0xC] = function(t, c, v1, v2) return format("%11d %2d %-15s %3d",     t, c, "Program Change",  v1) end,
+    [0xD] = function(t, c, v1, v2) return format("%11d %2d %-15s %3d",     t, c, "Chan Aftertouch",  v1) end,
+    [0xE] = function(t, c, v1, v2) return format("%11d %2d %-15s %7d",     t, c, "Pitch Bend",  v1) end,
+    [0xF] = function(t, c, v1, v2) return format("%11d %2d %-15s %3d",     t, c, "System Message",  v1) end,
 }
 
 ----------------------------------------------------------------------------------------------------
@@ -104,15 +104,15 @@ printbold("Monitoring midi events... (Press <Q> to Quit)")
 while true do
     local c = nocurses.getch() -- returns nil if new messages in midiBuffer
     repeat
-        local time, event = midiBuffer:nextmsg(0)
-        if time then
+        local frameTime, event = midiBuffer:nextmsg(0)
+        if frameTime then
             local status, channel, v1, v2 = parseMidiEvent(event)
             local toString = statusToString[status]
             if toString then
-                print(toString(time, channel + 1, v1, v2))
+                print(toString(frameTime, channel + 1, v1, v2))
             end
         end
-    until not time
+    until not frameTime
     if c then
         c = string.char(c)
         if c == "Q" or c == "q" then

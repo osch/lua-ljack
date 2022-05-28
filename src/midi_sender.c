@@ -36,6 +36,7 @@ struct MidiSenderUserData
     
     bool               hasNextEvent;
     uint32_t           nextEventFrame;
+    sender_capi_value  senderValue;
 };
 
 /* ============================================================================================ */
@@ -77,9 +78,10 @@ static int processCallback(uint32_t nframes, void* processorData)
     
     methods->clearBuffer(outBuf);
     
-    const sender_capi* senderCapi = udata->senderCapi;
-    sender_object*     sender     = udata->sender;
-    sender_reader*     reader     = udata->senderReader;
+    const sender_capi* senderCapi  =  udata->senderCapi;
+    sender_object*     sender      =  udata->sender;
+    sender_reader*     reader      =  udata->senderReader;
+    sender_capi_value* senderValue = &udata->senderValue;;
 
     uint32_t f0 = auprocCapi->getProcessBeginFrameTime(udata->auprocEngine);
 
@@ -89,25 +91,23 @@ nextEvent:
                                                    true /* nonblock */, 0 /* timeout */,
                                                    NULL /* errorHandler */, NULL /* errorHandlerData */);
         if (rc == 0) {
-            sender_capi_value  senderValue;
-            senderCapi->nextValueFromReader(reader, &senderValue);
-            if (senderValue.type != SENDER_CAPI_TYPE_NONE) {
+            senderCapi->nextValueFromReader(reader, senderValue);
+            if (senderValue->type != SENDER_CAPI_TYPE_NONE) {
                 bool hasT = false;
-                uint64_t t;
-                if (senderValue.type == SENDER_CAPI_TYPE_INTEGER) {
+                uint32_t t = f0;
+                if (senderValue->type == SENDER_CAPI_TYPE_INTEGER) {
                     hasT = true;
-                    t = senderValue.intVal;
-                } else if (senderValue.type == SENDER_CAPI_TYPE_NUMBER) {
+                    t = senderValue->intVal;
+                } else if (senderValue->type == SENDER_CAPI_TYPE_NUMBER) {
                     hasT = true;
-                    t = senderValue.numVal;
+                    t = senderValue->numVal;
                 }
                 if (hasT) {
-                    uint64_t t0 = auprocCapi->frameTimeToMicroSeconds(udata->auprocEngine, f0);
-                    if (t < t0) {
-                        t = t0;
-                    }
+                    senderCapi->nextValueFromReader(reader, senderValue);
+                }
+                if (senderValue->type == SENDER_CAPI_TYPE_STRING) {
                     udata->hasNextEvent = true;
-                    udata->nextEventFrame = auprocCapi->microSecondsToFrameTime(udata->auprocEngine, t); // jack_time_to_frames
+                    udata->nextEventFrame = t;
                 } else {
                     senderCapi->clearReader(reader);
                 }
@@ -117,16 +117,11 @@ nextEvent:
 
     if (udata->hasNextEvent) {
         uint32_t f  = udata->nextEventFrame;
-        if (f < f0) {
-            f = f0;
-        }
-        if (f >= f0 && f < f0 + nframes) {
-            sender_capi_value  senderValue;
-            senderCapi->nextValueFromReader(reader, &senderValue);
-            if (senderValue.type == SENDER_CAPI_TYPE_STRING) {
-                unsigned char* data = methods->reserveMidiEvent(outBuf, f-f0, senderValue.strVal.len);
+        if (f < f0 + nframes) {
+            if (f >= f0) {
+                unsigned char* data = methods->reserveMidiEvent(outBuf, f-f0, senderValue->strVal.len);
                 if (data) {
-                    memcpy(data, senderValue.strVal.ptr, senderValue.strVal.len);
+                    memcpy(data, senderValue->strVal.ptr, senderValue->strVal.len);
                 }
             }
             senderCapi->clearReader(reader);

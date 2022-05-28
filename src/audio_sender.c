@@ -95,7 +95,7 @@ nextEvent:
             senderCapi->nextValueFromReader(reader, &senderValue);
             if (senderValue.type != SENDER_CAPI_TYPE_NONE) {
                 bool hasT = false;
-                uint32_t t = 0;
+                uint32_t t = f0;
                 if (senderValue.type == SENDER_CAPI_TYPE_INTEGER) {
                     hasT = true;
                     t = senderValue.intVal;
@@ -110,9 +110,6 @@ nextEvent:
                   &&  senderValue.arrayVal.type == SENDER_FLOAT
                   &&  senderValue.arrayVal.elementSize == sizeof(float))
                 {
-                    if (t < f0) {
-                        t = f0;
-                    }
                     udata->hasNextEvent = true;
                     udata->eventStartFrame = t;
                     udata->eventEndFrame   = udata->eventStartFrame + senderValue.arrayVal.elementCount;

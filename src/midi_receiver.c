@@ -85,15 +85,13 @@ static int processCallback(uint32_t nframes, void* processorData)
     receiver_object*     receiver     = udata->receiver;
     receiver_writer*     writer       = udata->receiverWriter;
 
-    uint32_t t0 = auprocCapi->getProcessBeginFrameTime(auprocEngine); // jack_last_frame_time
+    uint32_t t0 = auprocCapi->getProcessBeginFrameTime(auprocEngine);
     if (receiver) {
         for (int i = 0; i < event_count; ++i) {
             methods->getMidiEvent(&in_event, inBuf, i);
             size_t s = in_event.size;
             if (s > 0) {
-                uint64_t usecs = auprocCapi->frameTimeToMicroSeconds(auprocEngine, t0 + in_event.time); // jack_frames_to_time
-                
-                receiverCapi->addIntegerToWriter(writer, usecs);
+                receiverCapi->addIntegerToWriter(writer, t0 + in_event.time);
                 receiverCapi->addStringToWriter (writer, in_event.buffer, in_event.size);
                 receiverCapi->msgToReceiver(receiver, writer, false /* clear */, false /* nonblock */, 
                                             NULL /* error handler */, NULL /* error handler data */);

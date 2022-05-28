@@ -43,6 +43,7 @@
         * [port:is_midi()](#port_is_midi)
         * [port:is_audio()](#port_is_audio)
         * [port:get_connections()](#port_get_connections)
+   * [Connector Objects](#connector-objects)
    * [Processor Objects](#processor-objects)
         * [processor:activate()](#processor_activate)
         * [processor:deactivate()](#processor_deactivate)
@@ -145,22 +146,24 @@ to be implemented in native C using the [Auproc C API].
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="ljack_new_midi_receiver">**`  ljack.new_midi_receiver(port, receiver)
+* <a id="ljack_new_midi_receiver">**`  ljack.new_midi_receiver(midiIn, receiver)
   `**</a>
 
   Returns a new midi receiver object. The midi receiver object is a 
   [processor object](#processor-objects).
   
-  * *port*     - port object of type *MIDI IN*. The port must belong to the associated client, 
-                 i.e. [port:is_mine()](#port_is_mine) must be *true*.
+  * *midiIn* - [connector object](#connector-objects) of type *MIDI IN*. 
+               If this is a port, it must belong to the associated client, 
+               i.e. [port:is_mine()](#port_is_mine) must be *true*.
                
-  * *receiver* - receiver object for midi events, must implement the [Receiver C API].
+  * *receiver* - receiver object for midi events, must implement the [Receiver C API], 
+                 e.g. a [mtmsg] buffer.
   
   The receiver object receivers for each midi event a message with two arguments:
-    - the time of the midi event as integer value in JACK's current system time in microseconds
-      (see also [client:get_time()](#client_get_time)).
+    - the time of the midi event as integer value in JACK's frame time
+      (see also [client:frame_time()](#client_frame_time)).
     - the midi event bytes as string value.
-
+    
   The midi receiver object is subject to garbage collection. The given port object is owned by the
   midi receiver object, i.e. the port object is not garbage collected as long as the midi receiver 
   object is not garbage collected.
@@ -169,35 +172,47 @@ to be implemented in native C using the [Auproc C API].
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="ljack_new_midi_sender">**`  ljack.new_midi_sender(connector, sender)
+* <a id="ljack_new_midi_sender">**`  ljack.new_midi_sender(midiOut, sender)
   `**</a>
   
   Returns a new midi sender object. The midi sender object is a 
   [processor object](#processor-objects).
   
-  * *connector*   - connector object of type *MIDI OUT*. If this is a port, it must belong to the 
-                    associated client, i.e. [port:is_mine()](#port_is_mine) must be *true*.
+  * *midiOut*   - [connector object](#connector-objects) of type *MIDI OUT*. 
+                  If this is a port, it must belong to the associated client, 
+                  i.e. [port:is_mine()](#port_is_mine) must be *true*.
                
-  * *sender* - sender object for midi events, must implement the [Sender C API].
+  * *sender* - sender object for midi events, must implement the [Sender C API], 
+               e.g. a [mtmsg] buffer.
   
   The sender object should send for each midi event a message with two arguments:
-    - the time of the midi event as integer value in JACK's current system time in microseconds
-      (see also [client:get_time()](#client_get_time)).
+    - optional the frame time of the midi event as integer value in JACK's frame time
+      (see also [client:frame_time()](#client_frame_time)). If this value is not given,
+      the midi event is sent as soon as possible. If this value refers to a frame time in the
+      past, the event is discarded.
     - the midi event bytes as string value.
     
-  The midi sender object is subject to garbage collection. The given port object is owned by the
-  midi sender object, i.e. the port object is not garbage collected as long as the midi sender 
-  object is not garbage collected.
+  The caller is responsible for sending the events in order, i.e. for increasing the frame 
+  time, i.e. the frame time of the subsequent midi event must be equal or larger then the frame 
+  time of the preceding midi event.
+
+  The midi sender object is subject to garbage collection. The given connector object is owned 
+  by the midi sender object, i.e. the connector object is not garbage collected as long as the 
+  midi sender object is not garbage collected.
 
   See also [example04.lua](../examples/example04.lua).
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="ljack_new_audio_sender">**`  ljack.new_audio_sender(connector, sender)
+* <a id="ljack_new_audio_sender">**`  ljack.new_audio_sender(audioOut, sender)
   `**</a>
 
-  * *connector*   - connector object of type *AUDIO OUT*. If this is a port, it must belong to the 
-                    associated client, i.e. [port:is_mine()](#port_is_mine) must be *true*.
+  Returns a new audio sender object. The audio sender object is a 
+  [processor object](#processor-objects).
+
+  * *audioOut*   - [connector object](#connector-objects) of type *AUDIO OUT*. 
+                   If this is a port, it must belong to the associated client, 
+                   i.e. [port:is_mine()](#port_is_mine) must be *true*.
                     
   * *sender* - sender object for sample data, must implement the [Sender C API], e.g. a [mtmsg] buffer.
 
@@ -207,10 +222,14 @@ to be implemented in native C using the [Auproc C API].
       the samples are played as soon as possible.
     - chunk of sample data, an [carray] of 32-bit float values.
  
-  The caller is responsible for sending the events in orders, i.e. for increasing the frame 
+  The caller is responsible for sending the events in order, i.e. for increasing the frame 
   time. The chunks of sample data may not overlap, i.e. the frame time of subsequent sample 
   data chunks must be equal or larger then the frame time of the preceding sample data chunk
   plus the length of the preceding chunk.
+
+  The audio sender object is subject to garbage collection. The given connector object is owned 
+  by the audio sender object, i.e. the connector object is not garbage collected as long as the 
+  audio sender object is not garbage collected.
 
   See also [example05.lua](../examples/example05.lua).
 
@@ -400,9 +419,10 @@ to be implemented in native C using the [Auproc C API].
 * <a id="client_new_process_buffer">**` client:new_process_buffer([type])
   `** </a>
 
-  Creates a new process buffer object which can be used as connector for [processor 
-  objects](#processor-objects). A process buffer can be used as input connector by multiple 
-  processor objects but as output connector it can only be used by one processor object.
+  Creates a new process buffer object which can be used as [connector](#connector-objects) 
+  for [processor objects](#processor-objects). A process buffer can be used as input connector 
+  by multiple processor objects but as output connector it can only be used by one processor 
+  object.
 
   * *type*       - optional string value, must be "AUDIO" or "MIDI". Default value is "AUDIO" 
                    if this parameter is not given.
@@ -476,6 +496,18 @@ to be implemented in native C using the [Auproc C API].
 
 
 <!-- ---------------------------------------------------------------------------------------- -->
+##   Connector Objects
+<!-- ---------------------------------------------------------------------------------------- -->
+
+Connector objects are either *port objects* with 
+*[port:is_mine()](#port_is_mine) == true* or *process buffer objects*.
+
+  * [Port objects](#client_port_register) are visible to other JACK clients outside your Lua application.
+
+  * [Process buffer objects](#client_new_process_buffer) are only visible inside your Lua application. They can be used to connect
+    [processor objects](#processor-objects) with each other.
+
+<!-- ---------------------------------------------------------------------------------------- -->
 ##   Processor Objects
 <!-- ---------------------------------------------------------------------------------------- -->
 
@@ -507,7 +539,7 @@ The above builtin processor objects are implementing the following methods:
 * <a id="processor_deactivate">**`     processor:deactivate()
   `** </a>
   
-  Deactivates the processor object. A deactivated processor object can be acticated again 
+  Deactivates the processor object. A deactivated processor object can be activated again 
   by calling [processor:activate()](#processor_activate).
   
 

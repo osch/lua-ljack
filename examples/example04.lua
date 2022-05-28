@@ -78,11 +78,17 @@ printbold("Generating midi events... (Press <Q> to Quit)")
 
 ----------------------------------------------------------------------------------------------------
 
-local t0 = client:get_time() -- microseconds
-local t1 = math.floor(t0 / 1000000) * 1000000
+local function raster(f)
+    -- round up frame time to mulitple of 100
+    return math.floor(f / 100) * 100 + 100
+end
+local rate = client:get_sample_rate()
+
+local t0 = client:frame_time()
+local t1 = raster(t0)
 
 while true do
-    local timeout = (t1 - client:get_time())/1000000
+    local timeout = (t1 - client:frame_time())/rate
     local c = nocurses.getch(timeout)
     if c then
         c = string.char(c)
@@ -91,15 +97,15 @@ while true do
             break
         end
     end
-    local t = client:get_time()
+    local t = client:frame_time()
     if t >= t1 then
         for _, e in ipairs(midi_events) do
-            local t = t1 + e[1]*1000000
+            local t = raster(t1 + e[1]*rate)
             local b1, b2, b3 = (e[2] * 0x10 + (CHANNEL - 1)), e[3], e[4]
-            print(format("%8.3f: 0x%02X %3d %3d", t/1000000, b1, b2, b3))
+            print(format("%11d: 0x%02X %3d %3d", t, b1, b2, b3))
             midiBuffer:addmsg(t, string.char(b1, b2, b3))
         end
-        t1 = t1 + PERIOD * 1000000
+        t1 = raster(t1 + PERIOD * rate)
     end
 end
 

@@ -136,7 +136,7 @@ struct auproc_midimeth
      * Get a MIDI event from an event buffer.
      *
      * event       - Event structure to store retrieved event in.
-     * port_buffer - Port buffer from which to retrieve event.
+     * midibuf     - Midi buffer from which to retrieve event.
      * event_index - Index of event to retrieve. 
      *               0 <= event_index < getEventCount(midibuf)
      */    
@@ -331,7 +331,7 @@ struct auproc_capi
      * This method may also raise a Lua error.
      *
      * firstConnectorIndex - stack index of the first Lua connector object given on the
-     *                       Lua stack.Connctor objects are port or process_buffer objects.
+     *                       Lua stack.
      * connectorCount      - number of Lua connector objects on the stack
      * engine              - Auproc engine obtained by method getEngine (s.a.)
      * processorName       - name for error messages to identify the processor
@@ -355,9 +355,7 @@ struct auproc_capi
      *                       on the stack at firstConnectorIndex. The members conDirection
      *                       and conType must match the corresponding Lua connector objects given 
      *                       on the Lua stack. The member conDirection must be AUPROC_IN
-     *                       or AUPROC_OUT. If the member portType has value AUPROC_AUDIO
-     *                       it will be set to one of the values AUPROC_CAPI_AUDIO_PORT or
-     *                       AUPROC_CAPI_AUDIO_BUFFER by this method.
+     *                       or AUPROC_OUT.
      * regError            - this method returns NULL on failure and gives additional error 
      *                       information in regError if regError != NULL. Member conIndex
      *                       contains the index offset of the connector, i.e. if there is an error with
