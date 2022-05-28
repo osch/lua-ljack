@@ -41,3 +41,15 @@
      [audio sender object](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_audio_sender).
      
 <!-- ---------------------------------------------------------------------------------------- -->
+
+   * [`example06.lua`](./example06.lua)
+     
+     This example generates two sounds from Lua script code on the main thread and lets
+     the user control balance and volume of each sound.
+     This example demonstrates how 
+     [audio sender objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_audio_sender)
+     and
+     [audio mixer objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_audio_mixer)
+     can be connected using [process buffer objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#client_new_process_buffer)
+     
+<!-- ---------------------------------------------------------------------------------------- -->

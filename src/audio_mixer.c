@@ -310,9 +310,11 @@ static int AudioMixer_new(lua_State* L)
     
     for (int i = 0; i < conCount - 1; ++i) {
         udata->inpConnections[i].connector = conRegs[i].connector;
-        udata->inpConnections[i].factor = 1.0;
+        udata->inpConnections[i].factor    = 1.0;
+        udata->inpConnections[i].methods   = conRegs[i].audioMethods;
     }
     udata->outConnector = conRegs[conCount - 1].connector;
+    udata->outMethods   = conRegs[conCount - 1].audioMethods;
 
     return 1;
 }

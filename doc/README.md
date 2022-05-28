@@ -136,8 +136,25 @@ to be implemented in native C using the [Auproc C API].
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="ljack_new_audio_mixer">**`  ljack.new_audio_mixer(connector, connector, [connector,]* sender)
+* <a id="ljack_new_audio_mixer">**`  ljack.new_audio_mixer(audioIn[, audioIn]*, audioOut, sender)
   `**</a>
+
+  Returns a new audio mixer object. The audio mixer object is a 
+  [processor object](#processor-objects).
+  
+  * *audioIn*  - one or more [connector objects](#connector-objects) of type *AUDIO IN*.
+  * *audioOut* - [connector object](#connector-objects) of type *AUDIO OUT*.
+  * *sender*   - optional sender object for controlling the mixer, must implement 
+                 the [Sender C API], e.g. a [mtmsg] buffer.
+  
+  The mixer can be controlled by sending messages with the given *sender* object to the mixer.
+  Each message should contain subsequent pairs of numbers: the first number, an integer, 
+  is the number of the *audioIn*  connector (1 means *first connector*), the second number 
+  of each pair, a float, is the amplification factor that is applied to the corresponding 
+  input connector given by the first number of the pair.
+  
+  
+  See also [example06.lua](../examples/example06.lua).
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
@@ -427,6 +444,8 @@ to be implemented in native C using the [Auproc C API].
   * *type*       - optional string value, must be "AUDIO" or "MIDI". Default value is "AUDIO" 
                    if this parameter is not given.
   
+  See also [example06.lua](../examples/example06.lua).
+
 <!-- ---------------------------------------------------------------------------------------- -->
 ##   Port Methods
 <!-- ---------------------------------------------------------------------------------------- -->
