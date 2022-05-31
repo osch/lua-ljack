@@ -13,6 +13,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if __STDC_VERSION__ >= 199901L
+    #include <stdint.h>
+#endif
+
 #ifdef LJACK_ASYNC_USE_WIN32
     #include <sys/types.h>
     #include <sys/timeb.h>

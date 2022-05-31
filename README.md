@@ -1,5 +1,6 @@
 # LJACK 
 [![Licence](http://img.shields.io/badge/Licence-MIT-brightgreen.svg)](LICENSE)
+[![build status](https://github.com/osch/lua-ljack/workflows/build/badge.svg)](https://github.com/osch/lua-ljack/actions/workflows/build.yml)
 [![Install](https://img.shields.io/badge/Install-LuaRocks-brightgreen.svg)](https://luarocks.org/modules/osch/ljack)
 
 <!-- ---------------------------------------------------------------------------------------- -->

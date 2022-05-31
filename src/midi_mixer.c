@@ -92,7 +92,7 @@ static int processCallback(uint32_t nframes, void* processorData)
         const sender_capi*   senderCapi = udata->senderCapi;
         sender_reader*       reader     = udata->senderReader;
 
-    nextMsg:
+    nextMsg:;
         int rc = senderCapi->nextMessageFromSender(udata->sender, reader,
                                                    true /* nonblock */, 0 /* timeout */,
                                                    NULL /* errorHandler */, NULL /* errorHandlerData */);
