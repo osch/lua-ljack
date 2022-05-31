@@ -1,5 +1,5 @@
-local nocurses = require("nocurses") -- https://luarocks.org/modules/osch/nocurses
-local mtmsg    = require("mtmsg")    -- https://luarocks.org/modules/osch/mtmsg
+local nocurses = require("nocurses") -- https://github.com/osch/lua-nocurses
+local mtmsg    = require("mtmsg")    -- https://github.com/osch/lua-mtmsg
 local ljack    = require("ljack")
 
 ----------------------------------------------------------------------------------------------------

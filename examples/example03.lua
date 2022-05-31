@@ -1,5 +1,6 @@
 local format   = string.format
 local nocurses = require("nocurses") -- https://luarocks.org/modules/osch/nocurses
+local carray   = require("carray")   -- https://luarocks.org/modules/osch/carray
 local mtmsg    = require("mtmsg")    -- https://luarocks.org/modules/osch/mtmsg
 local ljack    = require("ljack")
 
@@ -67,8 +68,8 @@ receiver:activate()
 
 ----------------------------------------------------------------------------------------------------
 
-local function parseMidiEvent(event)
-    local b0, b1, b2 = event:byte(1, 3)
+local function parseMidiEvent(midiBytes)
+    local b0, b1, b2 = midiBytes:get(1, 3)
     local status  = math.floor(b0 / 0x10)
     local channel = b0 % 0x10
     local v1, v2
@@ -101,12 +102,14 @@ local statusToString = {
 
 printbold("Monitoring midi events... (Press <Q> to Quit)")
 
+local midiBytes = carray.new("uint8")
+
 while true do
     local c = nocurses.getch() -- returns nil if new messages in midiBuffer
     repeat
-        local frameTime, event = midiBuffer:nextmsg(0)
+        local frameTime = midiBuffer:nextmsg(0, midiBytes)
         if frameTime then
-            local status, channel, v1, v2 = parseMidiEvent(event)
+            local status, channel, v1, v2 = parseMidiEvent(midiBytes)
             local toString = statusToString[status]
             if toString then
                 print(toString(frameTime, channel + 1, v1, v2))

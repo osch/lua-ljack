@@ -194,7 +194,7 @@ to be implemented in native C using the [Auproc C API].
   The receiver object receivers for each midi event a message with two arguments:
     - the time of the midi event as integer value in JACK's frame time
       (see also [client:frame_time()](#client_frame_time)).
-    - the midi event bytes as string value.
+    - the midi event bytes, an [carray] of  8-bit integer values.
     
   The midi receiver object is subject to garbage collection. The given port object is owned by the
   midi receiver object, i.e. the port object is not garbage collected as long as the midi receiver 
@@ -222,7 +222,7 @@ to be implemented in native C using the [Auproc C API].
       (see also [client:frame_time()](#client_frame_time)). If this value is not given,
       the midi event is sent as soon as possible. If this value refers to a frame time in the
       past, the event is discarded.
-    - the midi event bytes as string value.
+    - the midi event bytes as [carray] of  8-bit integer values.
     
   The caller is responsible for sending the events in order, i.e. for increasing the frame 
   time, i.e. the frame time of the subsequent midi event must be equal or larger then the frame 

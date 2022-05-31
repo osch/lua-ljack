@@ -1,6 +1,7 @@
 local format   = string.format
-local nocurses = require("nocurses") -- https://luarocks.org/modules/osch/nocurses
-local mtmsg    = require("mtmsg")    -- https://luarocks.org/modules/osch/mtmsg
+local nocurses = require("nocurses") -- https://github.com/osch/lua-nocurses
+local carray   = require("carray")   -- https://github.com/osch/lua-carray
+local mtmsg    = require("mtmsg")    -- https://github.com/osch/lua-mtmsg
 local ljack    = require("ljack")
 
 ----------------------------------------------------------------------------------------------------
@@ -98,12 +99,14 @@ while true do
         end
     end
     local t = client:frame_time()
+    local midiBytes = carray.new("uint8", 3)
     if t >= t1 then
         for _, e in ipairs(midi_events) do
             local t = raster(t1 + e[1]*rate)
             local b1, b2, b3 = (e[2] * 0x10 + (CHANNEL - 1)), e[3], e[4]
             print(format("%11d: 0x%02X %3d %3d", t, b1, b2, b3))
-            midiBuffer:addmsg(t, string.char(b1, b2, b3))
+            midiBytes:set(1, b1, b2, b3)
+            midiBuffer:addmsg(t, midiBytes)
         end
         t1 = raster(t1 + PERIOD * rate)
     end

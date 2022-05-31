@@ -92,9 +92,14 @@ static int processCallback(uint32_t nframes, void* processorData)
             size_t s = in_event.size;
             if (s > 0) {
                 receiverCapi->addIntegerToWriter(writer, t0 + in_event.time);
-                receiverCapi->addStringToWriter (writer, in_event.buffer, in_event.size);
-                receiverCapi->msgToReceiver(receiver, writer, false /* clear */, false /* nonblock */, 
-                                            NULL /* error handler */, NULL /* error handler data */);
+                unsigned char* data = receiverCapi->addArrayToWriter(writer, RECEIVER_UCHAR, in_event.size);
+                if (data) {
+                    memcpy(data, in_event.buffer, in_event.size);
+                    receiverCapi->msgToReceiver(receiver, writer, false /* clear */, false /* nonblock */, 
+                                                NULL /* error handler */, NULL /* error handler data */);
+                } else {
+                    receiverCapi->clearWriter(writer);
+                }
             }
         }
     }

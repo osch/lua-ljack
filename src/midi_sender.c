@@ -37,6 +37,9 @@ struct MidiSenderUserData
     bool               hasNextEvent;
     uint32_t           nextEventFrame;
     sender_capi_value  senderValue;
+
+    const void*        nextEventBytes;
+    size_t             nextEventBytesCount;
 };
 
 /* ============================================================================================ */
@@ -81,12 +84,12 @@ static int processCallback(uint32_t nframes, void* processorData)
     const sender_capi* senderCapi  =  udata->senderCapi;
     sender_object*     sender      =  udata->sender;
     sender_reader*     reader      =  udata->senderReader;
-    sender_capi_value* senderValue = &udata->senderValue;;
+    sender_capi_value* senderValue = &udata->senderValue;
 
     uint32_t f0 = auprocCapi->getProcessBeginFrameTime(udata->auprocEngine);
 
 nextEvent:
-    if (!udata->hasNextEvent) {
+    if (!udata->nextEventBytes) {
         int rc = senderCapi->nextMessageFromSender(sender, reader,
                                                    true /* nonblock */, 0 /* timeout */,
                                                    NULL /* errorHandler */, NULL /* errorHandlerData */);
@@ -105,27 +108,37 @@ nextEvent:
                 if (hasT) {
                     senderCapi->nextValueFromReader(reader, senderValue);
                 }
-                if (senderValue->type == SENDER_CAPI_TYPE_STRING) {
-                    udata->hasNextEvent = true;
-                    udata->nextEventFrame = t;
-                } else {
+                if (senderValue->type == SENDER_CAPI_TYPE_ARRAY) {
+                    sender_array_type type = senderValue->arrayVal.type;
+                    if (type == SENDER_UCHAR || type == SENDER_SCHAR) {
+                        udata->nextEventFrame      = t;
+                        udata->nextEventBytes      = senderValue->arrayVal.data;
+                        udata->nextEventBytesCount = senderValue->arrayVal.elementCount;
+                    }
+                }
+                else if (senderValue->type == SENDER_CAPI_TYPE_STRING) {
+                        udata->nextEventFrame      = t;
+                        udata->nextEventBytes      = senderValue->strVal.ptr;
+                        udata->nextEventBytesCount = senderValue->strVal.len;
+                } 
+                if (!udata->nextEventBytes) {
                     senderCapi->clearReader(reader);
                 }
             }
         }
     }
 
-    if (udata->hasNextEvent) {
+    if (udata->nextEventBytes) {
         uint32_t f  = udata->nextEventFrame;
         if (f < f0 + nframes) {
             if (f >= f0) {
-                unsigned char* data = methods->reserveMidiEvent(outBuf, f-f0, senderValue->strVal.len);
+                unsigned char* data = methods->reserveMidiEvent(outBuf, f-f0, udata->nextEventBytesCount);
                 if (data) {
-                    memcpy(data, senderValue->strVal.ptr, senderValue->strVal.len);
+                    memcpy(data, udata->nextEventBytes, udata->nextEventBytesCount);
                 }
             }
             senderCapi->clearReader(reader);
-            udata->hasNextEvent = false;
+            udata->nextEventBytes = NULL;
             goto nextEvent;
         }
     }
