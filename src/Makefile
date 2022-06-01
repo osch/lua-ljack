@@ -47,7 +47,7 @@ ljack:
 	    procbuf.c \
 	    midi_receiver.c midi_sender.c \
 	    audio_mixer.c midi_mixer.c \
-	    audio_sender.c \
+	    audio_sender.c audio_receiver.c \
 	    $(LOPTS) \
 	    -o build/lua$(LUA_VERSION)/ljack.$(SO_EXT)
 	    

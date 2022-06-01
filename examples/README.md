@@ -63,3 +63,12 @@
      can be connected using [MIDI process buffer objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#client_new_process_buffer)
 
 <!-- ---------------------------------------------------------------------------------------- -->
+
+   * [`example08.lua`](./example08.lua)
+     
+     This example demonstrates how an audio stream can be recorded and replayed using  
+     [audio receiver objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_audio_receiver)
+     and 
+     [audio sender objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_audio_sender).
+
+<!-- ---------------------------------------------------------------------------------------- -->

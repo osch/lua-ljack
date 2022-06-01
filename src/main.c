@@ -13,6 +13,7 @@
 #include "audio_mixer.h"
 #include "midi_mixer.h"
 #include "audio_sender.h"
+#include "audio_receiver.h"
 #include "receiver_capi.h"
 #include "error.h"
 #include "auproc_capi_impl.h"
@@ -361,15 +362,16 @@ DLL_PUBLIC int luaopen_ljack(lua_State* L)
     
     lua_checkstack(L, LUA_MINSTACK);
     
-    ljack_client_init_module        (L, module);
-    ljack_port_init_module          (L, module);
-    ljack_procbuf_init_module       (L, module);
+    ljack_client_init_module         (L, module);
+    ljack_port_init_module           (L, module);
+    ljack_procbuf_init_module        (L, module);
 
-    auproc_midi_receiver_init_module(L, module);
-    auproc_midi_sender_init_module  (L, module);
-    auproc_audio_mixer_init_module  (L, module);
-    auproc_midi_mixer_init_module   (L, module);
-    auproc_audio_sender_init_module (L, module);
+    auproc_midi_receiver_init_module (L, module);
+    auproc_midi_sender_init_module   (L, module);
+    auproc_audio_mixer_init_module   (L, module);
+    auproc_midi_mixer_init_module    (L, module);
+    auproc_audio_sender_init_module  (L, module);
+    auproc_audio_receiver_init_module(L, module);
     
     lua_newtable(L);                                   /* -> meta */
     lua_pushstring(L, "ljack");                        /* -> meta, "ljack" */

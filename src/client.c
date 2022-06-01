@@ -69,12 +69,13 @@ static int LjackClient_open(lua_State* L)
     
     ClientUserData* udata = lua_newuserdata(L, sizeof(ClientUserData));
     memset(udata, 0, sizeof(ClientUserData));
-    udata->className = LJACK_CLIENT_CLASS_NAME;
-    udata->weakTableRef   = LUA_REFNIL;
-    udata->strongTableRef = LUA_REFNIL;
     async_mutex_init(&udata->processMutex);
     pushClientMeta(L);                                      /* -> udata, meta */
     lua_setmetatable(L, -2);                                /* -> udata */
+
+    udata->className      = LJACK_CLIENT_CLASS_NAME;
+    udata->weakTableRef   = LUA_REFNIL;
+    udata->strongTableRef = LUA_REFNIL;
 
     lua_newtable(L);                                        /* -> udata, weakTable */
     lua_newtable(L);                                        /* -> udata, weakTable, meta */

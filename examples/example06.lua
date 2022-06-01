@@ -44,18 +44,14 @@ queue2:notifier(nocurses, "<", qlength)
 
 local sender1 = ljack.new_audio_sender(sound1, queue1)
 local sender2 = ljack.new_audio_sender(sound2, queue2)
-sender1:activate()
-sender2:activate()
 
 ----------------------------------------------------------------------------------------------------
 
 local mix1ctrl = mtmsg.newbuffer()
 local mixer1   = ljack.new_audio_mixer(sound1, sound2, myPort1, mix1ctrl)
-mixer1:activate()
 
 local mix2ctrl = mtmsg.newbuffer()
 local mixer2   = ljack.new_audio_mixer(sound1, sound2, myPort2, mix2ctrl)
-mixer2:activate()
 
 ----------------------------------------------------------------------------------------------------
 
@@ -91,6 +87,14 @@ local function printHelp()
 end
 printHelp()
 printValues()
+
+----------------------------------------------------------------------------------------------------
+
+sender1:activate()
+sender2:activate()
+
+mixer1:activate()
+mixer2:activate()
 
 ----------------------------------------------------------------------------------------------------
 

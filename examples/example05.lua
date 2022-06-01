@@ -33,7 +33,6 @@ local qlength = 3
 queue:notifier(nocurses, "<", qlength)
 
 local sender = ljack.new_audio_sender(myPort, queue)
-sender:activate()
 
 local buflen  = client:get_buffer_size()
 local rate    = client:get_sample_rate()
@@ -55,6 +54,8 @@ local function reset()
 end
 reset()
 
+----------------------------------------------------------------------------------------------------
+
 local function printValues()
     print(format("v1: %8.2f, f1: %8.2f, v2: %8.2f, f2: %8.2f", v1, f1, v2, f2))
 end
@@ -63,6 +64,10 @@ local function printHelp()
 end
 printHelp()
 printValues()
+
+----------------------------------------------------------------------------------------------------
+
+sender:activate()
 
 ----------------------------------------------------------------------------------------------------
 

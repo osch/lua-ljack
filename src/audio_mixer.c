@@ -187,7 +187,7 @@ static int AudioMixer_new(lua_State* L)
     const auproc_capi* capi = auproc_get_capi(L, firstArg, &versionError);
     auproc_engine* engine = NULL;
     if (capi) {
-        engine = capi->getEngine(L, firstArg);
+        engine = capi->getEngine(L, firstArg, NULL);
     }
     if (!capi || !engine) {
         if (versionError) {

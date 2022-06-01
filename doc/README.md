@@ -16,6 +16,7 @@
         * [ljack.new_midi_receiver()](#ljack_new_midi_receiver)
         * [ljack.new_midi_sender()](#ljack_new_midi_sender)
         * [ljack.new_audio_sender()](#ljack_new_audio_sender)
+        * [ljack.new_audio_receiver()](#ljack_new_audio_receiver)
    * [Client Methods](#client-methods)
         * [client:name()](#client_name)
         * [client:activate()](#client_activate)
@@ -264,6 +265,32 @@ to be implemented in native C using the [Auproc C API].
   audio sender object is not garbage collected.
 
   See also [example05.lua](../examples/example05.lua).
+
+<!-- ---------------------------------------------------------------------------------------- -->
+
+* <a id="ljack_new_audio_receiver">**`  ljack.new_audio_receiver(audioIn, receiver)
+  `**</a>
+
+  Returns a new audio receiver object. The audio receiver object is a 
+  [processor object](#processor-objects).
+
+  * *audioIn* - [connector object](#connector-objects) of type *AUDIO IN*. 
+                If this is a port, it must belong to the associated client, 
+                i.e. [port:is_mine()](#port_is_mine) must be *true*.
+               
+  * *receiver* - receiver object for audio samples, must implement the [Receiver C API], 
+                 e.g. a [mtmsg] buffer.
+  
+  The receiver object receivers for each audio sample chunk a message with two arguments:
+    - the time of the audio event as integer value in JACK's frame time
+      (see also [client:frame_time()](#client_frame_time)).
+    - the audio sample bytes, an [carray] of 32-bit float values.
+    
+  The audio receiver object is subject to garbage collection. The given connector object is owned by the
+  audio receiver object, i.e. the connector object is not garbage collected as long as the audio receiver 
+  object is not garbage collected.
+    
+  See also [example08.lua](../examples/example08.lua).
 
 <!-- ---------------------------------------------------------------------------------------- -->
 ##   Client Methods
@@ -552,11 +579,12 @@ in C using the [Auproc C API].
 LJACK includes the following procesor objects. The implementations can be seen as examples
 on how to implement procesor objects using the [Auproc C API].
 
-  * [audio mixer](#ljack_new_audio_mixer),     implementation: [audio_mixer.c](../src/audio_mixer.c).
-  * [midi mixer](#ljack_new_midi_mixer),       implementation: [midi_mixer.c](../src/midi_mixer.c).
-  * [midi reveicer](#ljack_new_midi_receiver), implementation: [midi_receiver.c](../src/midi_receiver.c).
-  * [midi sender](#ljack_new_midi_sender),     implementation: [midi_sender.c](../src/midi_sender.c).
-  * [audio sender](#ljack_new_audio_sender),   implementation: [audio_sender.c](../src/audio_sender.c).
+  * [audio mixer](#ljack_new_audio_mixer),       implementation: [audio_mixer.c](../src/audio_mixer.c).
+  * [midi mixer](#ljack_new_midi_mixer),         implementation: [midi_mixer.c](../src/midi_mixer.c).
+  * [midi reveicer](#ljack_new_midi_receiver),   implementation: [midi_receiver.c](../src/midi_receiver.c).
+  * [midi sender](#ljack_new_midi_sender),       implementation: [midi_sender.c](../src/midi_sender.c).
+  * [audio sender](#ljack_new_audio_sender),     implementation: [audio_sender.c](../src/audio_sender.c).
+  * [audio receiver](#ljack_new_audio_receiver), implementation: [audio_receiver.c](../src/audio_receiver.c).
 
 The above builtin processor objects are implementing the following methods:
   

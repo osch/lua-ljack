@@ -87,11 +87,12 @@ static int processCallback(uint32_t nframes, void* processorData)
     sender_capi_value* senderValue = &udata->senderValue;
 
     uint32_t f0 = auprocCapi->getProcessBeginFrameTime(udata->auprocEngine);
+    uint32_t f1 = f0 + nframes;
 
 nextEvent:
     if (!udata->nextEventBytes) {
         int rc = senderCapi->nextMessageFromSender(sender, reader,
-                                                   true /* nonblock */, 0 /* timeout */,
+                                                   false /* nonblock */, 0 /* timeout */,
                                                    NULL /* errorHandler */, NULL /* errorHandlerData */);
         if (rc == 0) {
             senderCapi->nextValueFromReader(reader, senderValue);
@@ -130,12 +131,13 @@ nextEvent:
 
     if (udata->nextEventBytes) {
         uint32_t f  = udata->nextEventFrame;
-        if (f < f0 + nframes) {
+        if (f < f1) {
             if (f >= f0) {
                 unsigned char* data = methods->reserveMidiEvent(outBuf, f-f0, udata->nextEventBytesCount);
                 if (data) {
                     memcpy(data, udata->nextEventBytes, udata->nextEventBytesCount);
                 }
+                f0 = f;
             }
             senderCapi->clearReader(reader);
             udata->nextEventBytes = NULL;
@@ -180,7 +182,7 @@ static int MidiSender_new(lua_State* L)
     const auproc_capi* capi = auproc_get_capi(L, conArg, &versionError);
     auproc_engine* engine = NULL;
     if (capi) {
-        engine = capi->getEngine(L, conArg);
+        engine = capi->getEngine(L, conArg, NULL);
     }
     if (!capi || !engine) {
         if (versionError) {

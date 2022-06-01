@@ -38,6 +38,8 @@ struct AudioSenderUserData
     uint32_t           eventStartFrame;
     uint32_t           eventEndFrame;
     const float*       eventData;
+    
+    float* uuu;
 };
 
 /* ============================================================================================ */
@@ -76,6 +78,7 @@ static int processCallback(uint32_t nframes, void* processorData)
     const auproc_audiometh* methods    = udata->audioMethods;
     
     float*  outBuf  = methods->getAudioBuffer(udata->audioOutConnector, nframes);
+    udata->uuu = outBuf;
     
     memset(outBuf, 0, sizeof(float) * nframes);
     
@@ -84,11 +87,12 @@ static int processCallback(uint32_t nframes, void* processorData)
     sender_reader*     reader     = udata->senderReader;
 
     uint32_t f0 = auprocCapi->getProcessBeginFrameTime(udata->auprocEngine);
+    uint32_t f1 = f0 + nframes;
 
 nextEvent:
     if (!udata->hasNextEvent) {
         int rc = senderCapi->nextMessageFromSender(sender, reader,
-                                                   true /* nonblock */, 0 /* timeout */,
+                                                   false /* nonblock */, 0 /* timeout */,
                                                    NULL /* errorHandler */, NULL /* errorHandlerData */);
         if (rc == 0) {
             sender_capi_value senderValue;
@@ -127,10 +131,10 @@ nextEvent:
             udata->eventData += (f0 - s);
             s = f0;
         }
-        if (s < f0 + nframes) {
+        if (s < f1) {
             uint32_t e = udata->eventEndFrame;
-            if (e > f0 + nframes) {
-                e = f0 + nframes;
+            if (e > f1) {
+                e = f1;
             }
             if (e > s) {
                 memcpy(outBuf + (s - f0), udata->eventData, (e - s) * sizeof(float));
@@ -139,6 +143,10 @@ nextEvent:
                 udata->eventData += (e - s);
                 udata->eventStartFrame = e;
             } else {
+                if (e > s) {
+                    outBuf += (e - f0);
+                    f0 = e;
+                }
                 senderCapi->clearReader(reader);
                 udata->hasNextEvent = false;
                 goto nextEvent;
@@ -183,7 +191,7 @@ static int AudioSender_new(lua_State* L)
     const auproc_capi* capi = auproc_get_capi(L, conArg, &versionError);
     auproc_engine* engine = NULL;
     if (capi) {
-        engine = capi->getEngine(L, conArg);
+        engine = capi->getEngine(L, conArg, NULL);
     }
     if (!capi || !engine) {
         if (versionError) {

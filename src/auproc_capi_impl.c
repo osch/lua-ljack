@@ -172,7 +172,7 @@ static auproc_obj_type getObjectType(lua_State* L, int index)
 
 /* ============================================================================================ */
 
-static auproc_engine* getEngine(lua_State* L, int index)
+static auproc_engine* getEngine(lua_State* L, int index, auproc_info* info)
 {
     void*  udata = lua_touserdata(L, index);
     size_t len   = udata ? lua_rawlen(L, index) : 0;
@@ -187,6 +187,10 @@ static auproc_engine* getEngine(lua_State* L, int index)
     }
     if (clientUdata) {
         ljack_client_check_is_valid(L, clientUdata);
+    }
+    if (info) {
+        memset(info, 0, sizeof(auproc_info));
+        info->sampleRate = clientUdata->sampleRate;
     }
     return (auproc_engine*) clientUdata;
 }

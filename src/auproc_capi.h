@@ -9,6 +9,7 @@
 
 typedef struct auproc_capi         auproc_capi;
 typedef struct auproc_engine       auproc_engine;
+typedef struct auproc_info         auproc_info;
 typedef struct auproc_connector    auproc_connector;
 typedef struct auproc_processor    auproc_processor;
 typedef struct auproc_midibuf      auproc_midibuf;
@@ -90,6 +91,14 @@ enum auproc_reg_err_type
      */
     AUPROC_REG_ERR_WRONG_CONNECTOR_TYPE = 6,
     
+};
+
+/**
+ * Additional information about engine.
+ */
+struct auproc_info
+{
+    uint32_t sampleRate;
 };
 
 /**
@@ -279,9 +288,11 @@ struct auproc_capi
      * return NULL. Objects of type AUPROC_TENGINE or
      * AUPROC_TCONNECTOR can be used to obtain a 
      * auproc_engine pointer.
+     * If info is not NULL, additional information is written into
+     * the audproc_info struct.
      * Raises a Lua error if engine was closed.
      */
-    auproc_engine* (*getEngine)(lua_State* L, int index);
+    auproc_engine* (*getEngine)(lua_State* L, int index, auproc_info* info);
 
     /**
      * Returns true if engine was closed invalidated due to processing errors.
