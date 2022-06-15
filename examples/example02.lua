@@ -1,3 +1,15 @@
+----------------------------------------------------------------------------------------------------
+--[[
+     This example lets the user select a MIDI OUT and a MIDI IN port which are connected and
+     observed afterwards. The example reconnects if the connection is disconnected or
+     if one of the ports disappears and reappears again.
+     
+     The example uses [lua-nocurses](https://github.com/osch/lua-nocurses) for user
+     interaction and [lua-mtmsg](https://github.com/osch/lua-mtmsg) as receiver for
+     JACK status events, see also [Status Messages](https://github.com/osch/lua-ljack/blob/master/doc/README.md#status-messages).
+--]]
+----------------------------------------------------------------------------------------------------
+
 local nocurses = require("nocurses") -- https://github.com/osch/lua-nocurses
 local mtmsg    = require("mtmsg")    -- https://github.com/osch/lua-mtmsg
 local ljack    = require("ljack")

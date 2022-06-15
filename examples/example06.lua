@@ -1,8 +1,19 @@
 ----------------------------------------------------------------------------------------------------
+--[[
+     This example generates two sounds from Lua script code on the main thread and lets
+     the user control balance and volume of each sound.
+     This example demonstrates how 
+     [Auproc audio sender objects](https://github.com/osch/lua-auproc/blob/master/doc/README.md#auproc_new_audio_sender)
+     and
+     [Auproc audio mixer objects](https://github.com/osch/lua-auproc/blob/master/doc/README.md#auproc_new_audio_mixer)
+     can be connected using [AUDIO process buffer objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#client_new_process_buffer)
+--]]
+----------------------------------------------------------------------------------------------------
 
 local nocurses = require("nocurses") -- https://github.com/osch/lua-nocurses
 local carray   = require("carray")   -- https://github.com/osch/lua-carray
 local mtmsg    = require("mtmsg")    -- https://github.com/osch/lua-mtmsg
+local auproc   = require("auproc")   -- https://github.com/osch/lua-auproc
 local ljack    = require("ljack")
 
 ----------------------------------------------------------------------------------------------------
@@ -42,16 +53,16 @@ queue2:notifier(nocurses, "<", qlength)
 
 ----------------------------------------------------------------------------------------------------
 
-local sender1 = ljack.new_audio_sender(sound1, queue1)
-local sender2 = ljack.new_audio_sender(sound2, queue2)
+local sender1 = auproc.new_audio_sender(sound1, queue1)
+local sender2 = auproc.new_audio_sender(sound2, queue2)
 
 ----------------------------------------------------------------------------------------------------
 
 local mix1ctrl = mtmsg.newbuffer()
-local mixer1   = ljack.new_audio_mixer(sound1, sound2, myPort1, mix1ctrl)
+local mixer1   = auproc.new_audio_mixer(sound1, sound2, myPort1, mix1ctrl)
 
 local mix2ctrl = mtmsg.newbuffer()
-local mixer2   = ljack.new_audio_mixer(sound1, sound2, myPort2, mix2ctrl)
+local mixer2   = auproc.new_audio_mixer(sound1, sound2, myPort2, mix2ctrl)
 
 ----------------------------------------------------------------------------------------------------
 

@@ -38,12 +38,6 @@ build = {
           "src/error.c",
           "src/async_util.c",
           "src/ljack_compat.c",
-          "src/midi_receiver.c",
-          "src/midi_sender.c",
-          "src/audio_mixer.c",
-          "src/midi_mixer.c",
-          "src/audio_sender.c",
-          "src/audio_receiver.c"
       },
       defines = { "LJACK_VERSION="..version:gsub("^(.*)-.-$", "%1") },
     },

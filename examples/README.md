@@ -1,4 +1,10 @@
 # LJACK Examples
+
+<!-- ---------------------------------------------------------------------------------------- -->
+
+Most of the examples are using procesor objects that are provided by the
+[lua-auproc](https://github.com/osch/lua-auproc) package.
+
 <!-- ---------------------------------------------------------------------------------------- -->
 
    * [`example01.lua`](./example01.lua)
@@ -23,14 +29,14 @@
    * [`example03.lua`](./example03.lua)
      
      A simple midi monitor. This example demonstrates the usage of a 
-     [midi receiver object](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_midi_receiver).
+     [Auproc midi receiver object](https://github.com/osch/lua-auproc/blob/master/doc/README.md#auproc_new_midi_receiver).
      
 <!-- ---------------------------------------------------------------------------------------- -->
 
    * [`example04.lua`](./example04.lua)
      
      This example sends MIDI Note On/Off events. This example demonstrates the usage of a 
-     [midi sender object](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_midi_sender).
+     [Auproc midi sender object](https://github.com/osch/lua-auproc/blob/master/doc/README.md#auproc_new_midi_sender).
      
 <!-- ---------------------------------------------------------------------------------------- -->
 
@@ -38,7 +44,7 @@
      
      This example generates audio samples from Lua script code on the main thread. 
      This example demonstrates the usage of a 
-     [audio sender object](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_audio_sender).
+     [Auproc audio sender object](https://github.com/osch/lua-auproc/blob/master/doc/README.md#auproc_new_audio_sender).
      
 <!-- ---------------------------------------------------------------------------------------- -->
 
@@ -47,9 +53,9 @@
      This example generates two sounds from Lua script code on the main thread and lets
      the user control balance and volume of each sound.
      This example demonstrates how 
-     [audio sender objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_audio_sender)
+     [Auproc audio sender objects](https://github.com/osch/lua-auproc/blob/master/doc/README.md#auproc_new_audio_sender)
      and
-     [audio mixer objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_audio_mixer)
+     [Auproc audio mixer objects](https://github.com/osch/lua-auproc/blob/master/doc/README.md#auproc_new_audio_mixer)
      can be connected using [AUDIO process buffer objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#client_new_process_buffer)
      
 <!-- ---------------------------------------------------------------------------------------- -->
@@ -57,9 +63,9 @@
    * [`example07.lua`](./example07.lua)
      
      This example demonstrates how 
-     [midi sender objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_midi_sender)
+     [Auproc midi sender objects](https://github.com/osch/lua-auproc/blob/master/doc/README.md#auproc_new_midi_sender)
      and
-     [midi mixer objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_midi_mixer)
+     [Auproc midi mixer objects](https://github.com/osch/lua-auproc/blob/master/doc/README.md#auproc_new_midi_mixer)
      can be connected using [MIDI process buffer objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#client_new_process_buffer)
 
 <!-- ---------------------------------------------------------------------------------------- -->
@@ -67,8 +73,8 @@
    * [`example08.lua`](./example08.lua)
      
      This example demonstrates how an audio stream can be recorded and replayed using  
-     [audio receiver objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_audio_receiver)
+     [Auproc audio receiver objects](https://github.com/osch/lua-auproc/blob/master/doc/README.md#auproc_new_audio_receiver)
      and 
-     [audio sender objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#ljack_new_audio_sender).
+     [Auproc audio sender objects](https://github.com/osch/lua-auproc/blob/master/doc/README.md#auproc_new_audio_sender).
 
 <!-- ---------------------------------------------------------------------------------------- -->

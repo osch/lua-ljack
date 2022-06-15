@@ -7,6 +7,24 @@
 #define AUPROC_CAPI_VERSION_MINOR  1
 #define AUPROC_CAPI_VERSION_PATCH  0
 
+#ifdef __cplusplus
+
+extern "C" {
+
+struct auproc_capi;
+struct auproc_engine;
+struct auproc_info;
+struct auproc_connector;
+struct auproc_processor;
+struct auproc_midibuf;
+struct auproc_midimeth;
+struct auproc_audiometh;
+struct auproc_con_reg;
+struct auproc_con_reg_err;
+struct auproc_midi_event;
+
+#else /* __cplusplus */
+
 typedef struct auproc_capi         auproc_capi;
 typedef struct auproc_engine       auproc_engine;
 typedef struct auproc_info         auproc_info;
@@ -24,6 +42,8 @@ typedef enum   auproc_direction auproc_direction;
 typedef enum   auproc_obj_type  auproc_obj_type;
 typedef enum   auproc_con_type  auproc_con_type;
 
+#endif /* ! __cplusplus */
+
 #ifndef AUPROC_CAPI_IMPLEMENT_SET_CAPI
 #  define AUPROC_CAPI_IMPLEMENT_SET_CAPI 0
 #endif
@@ -36,8 +56,7 @@ enum auproc_direction
 {
     AUPROC_NONE  = 0,
     AUPROC_IN    = 1,
-    AUPROC_OUT   = 2,
-    AUPROC_INOUT = (1|2)
+    AUPROC_OUT   = 2
 };
 
 enum auproc_con_type
@@ -326,13 +345,13 @@ struct auproc_capi
      * Possible values:
      *     - AUPROC_IN,
      *     - AUPROC_OUT,
-     *     - AUPROC_INOUT.
      *
-     * E.g. a auproc process buffer may give AUPROC_INOUT before 
+     * E.g. a process buffer may give AUPROC_OUT before 
      * calling registerProcessor. If this process buffer is registered
-     * with AUPROC_IN, the method getPossibleDirections will return only
-     * AUPROC_OUT afterwards, since a auproc process buffer object
-     * may only be written to from one processor.
+     * with AUPROC_OUT, the method getPossibleDirections will return 
+     * AUPROC_IN afterwards, since a process buffer object
+     * may only be used as input connector if it used as output
+     * connector by another processor.
      */
     auproc_direction (*getPossibleDirections)(lua_State* L, int index);
 
@@ -375,16 +394,16 @@ struct auproc_capi
      *                       connector conIndex is set to -1.
      */
     auproc_processor* (*registerProcessor)(lua_State* L, 
-                                               int firstConnectorIndex, int connectorCount,
-                                               auproc_engine* engine, 
-                                               const char* processorName,
-                                               void* processorData,
-                                               int  (*processCallback)(uint32_t nframes, void* processorData),
-                                               int  (*bufferSizeCallback)(uint32_t nframes, void* processorData),
-                                               void (*engineClosedCallback)(void* processorData),
-                                               void (*engineReleasedCallback)(void* processorData),
-                                               auproc_con_reg* conRegList,
-                                               auproc_con_reg_err* regError);
+                                           int firstConnectorIndex, int connectorCount,
+                                           auproc_engine* engine, 
+                                           const char* processorName,
+                                           void* processorData,
+                                           int  (*processCallback)(uint32_t nframes, void* processorData),
+                                           int  (*bufferSizeCallback)(uint32_t nframes, void* processorData),
+                                           void (*engineClosedCallback)(void* processorData),
+                                           void (*engineReleasedCallback)(void* processorData),
+                                           auproc_con_reg* conRegList,
+                                           auproc_con_reg_err* regError);
 
     /**
      * Unregisters native processor object. Audio processing is stopped for this processor
@@ -426,16 +445,6 @@ struct auproc_capi
      * This function should only be called within the processCallback.
      */
     uint32_t (*getProcessBeginFrameTime)(auproc_engine* engine);
-    
-    /**
-     * Returns the estimated time in microseconds of the specified frame time.
-     */
-    uint64_t (*frameTimeToMicroSeconds)(auproc_engine* engine, uint32_t nframes);
-
-    /**
-     * Returns the estimated time in frames for the specified microseoncds system time.
-     */    
-    uint32_t (*microSecondsToFrameTime)(auproc_engine* engine, uint64_t usecs);
     
     /**
      * General engine category name for error messages, 
@@ -518,5 +527,9 @@ static const auproc_capi* auproc_get_capi(lua_State* L, int index, int* versionE
     return NULL;
 }
 #endif /* AUPROC_CAPI_IMPLEMENT_GET_CAPI */
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 #endif /* AUPROC_CAPI_H */

@@ -1,7 +1,16 @@
 ----------------------------------------------------------------------------------------------------
+--[[
+     This example demonstrates how 
+     [Auproc midi sender objects](https://github.com/osch/lua-auproc/blob/master/doc/README.md#auproc_new_midi_sender)
+     and
+     [Auproc midi mixer objects](https://github.com/osch/lua-auproc/blob/master/doc/README.md#auproc_new_midi_mixer)
+     can be connected using [MIDI process buffer objects](https://github.com/osch/lua-ljack/blob/master/doc/README.md#client_new_process_buffer)
+--]]
+----------------------------------------------------------------------------------------------------
 
 local nocurses = require("nocurses") -- https://github.com/osch/lua-nocurses
 local mtmsg    = require("mtmsg")    -- https://github.com/osch/lua-mtmsg
+local auproc   = require("auproc")   -- https://github.com/osch/lua-auproc
 local ljack    = require("ljack")
 
 ----------------------------------------------------------------------------------------------------
@@ -75,14 +84,14 @@ end
 
 local midiSenderCtrl = mtmsg.newbuffer()
 local midiSenderOut  = client:new_process_buffer("MIDI")
-local midiSender     = ljack.new_midi_sender(midiSenderOut, midiSenderCtrl)
+local midiSender     = auproc.new_midi_sender(midiSenderOut, midiSenderCtrl)
 
 local midiMixerCtrl = mtmsg.newbuffer() 
-local midiMixer     = ljack.new_midi_mixer(myMidiInPort,  -- input1: my MIDI IN port
-                                           myMidiInPort,  -- input2: duplicate MIDI IN port
-                                           midiSenderOut, -- input3: internal process buffer
-                                           myMidiOutPort, -- output: my MIDI OUT port
-                                           midiMixerCtrl)
+local midiMixer     = auproc.new_midi_mixer(myMidiInPort,  -- input1: my MIDI IN port
+                                            myMidiInPort,  -- input2: duplicate MIDI IN port
+                                            midiSenderOut, -- input3: internal process buffer
+                                            myMidiOutPort, -- output: my MIDI OUT port
+                                            midiMixerCtrl)
 
 for c = 1, 16 do
     midiMixerCtrl:addmsg(1, c, OTHER_CHANNEL) -- input1: map   channel c -> OTHER_CHANNEL

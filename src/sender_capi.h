@@ -23,12 +23,26 @@
 #  define SENDER_CAPI_IMPLEMENT_GET_CAPI 0
 #endif
 
+#ifdef __cplusplus
+
+extern "C" {
+
+struct sender_object;
+struct sender_reader;
+struct sender_capi;
+struct sender_capi_value;
+
+#else /* __cplusplus */
+
 typedef struct sender_object          sender_object;
 typedef struct sender_reader          sender_reader;
 typedef struct sender_capi            sender_capi;
-typedef enum   sender_capi_value_type sender_capi_value_type;
 typedef struct sender_capi_value      sender_capi_value;
+
+typedef enum   sender_capi_value_type sender_capi_value_type;
 typedef enum   sender_array_type      sender_array_type;
+
+#endif /* ! __cplusplus */
 
 enum sender_capi_value_type
 {
@@ -263,5 +277,9 @@ static const sender_capi* sender_get_capi(lua_State* L, int index, int* errorRea
     return NULL;
 }
 #endif /* SENDER_CAPI_IMPLEMENT_GET_CAPI */
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 #endif /* SENDER_CAPI_H */

@@ -1,8 +1,15 @@
 ----------------------------------------------------------------------------------------------------
+--[[
+     This example generates audio samples from Lua script code on the main thread. 
+     This example demonstrates the usage of a 
+     [Auproc audio sender object](https://github.com/osch/lua-auproc/blob/master/doc/README.md#auproc_new_audio_sender).
+--]]
+----------------------------------------------------------------------------------------------------
 
 local nocurses = require("nocurses") -- https://github.com/osch/lua-nocurses
 local carray   = require("carray")   -- https://github.com/osch/lua-carray
 local mtmsg    = require("mtmsg")    -- https://github.com/osch/lua-mtmsg
+local auproc   = require("auproc")   -- https://github.com/osch/lua-auproc
 local ljack    = require("ljack")
 
 ----------------------------------------------------------------------------------------------------
@@ -32,7 +39,7 @@ local queue   = mtmsg.newbuffer()
 local qlength = 3
 queue:notifier(nocurses, "<", qlength)
 
-local sender = ljack.new_audio_sender(myPort, queue)
+local sender = auproc.new_audio_sender(myPort, queue)
 
 local buflen  = client:get_buffer_size()
 local rate    = client:get_sample_rate()

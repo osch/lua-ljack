@@ -11,7 +11,7 @@ LNX_COPTS   :=
 WIN_COPTS   := -I/mingw64/include/lua5.1 
 MAC_COPTS   := -I/usr/local/opt/lua/include/lua5.3 
 
-LNX_LOPTS   := -lpthread -ljack -g
+LNX_LOPTS   := -ljack -g
 WIN_LOPTS   := -lkernel32
 MAC_LOPTS   := -lpthread
 
@@ -45,9 +45,6 @@ ljack:
 	    auproc_capi_impl.c \
 	    util.c error.c async_util.c   ljack_compat.c  \
 	    procbuf.c \
-	    midi_receiver.c midi_sender.c \
-	    audio_mixer.c midi_mixer.c \
-	    audio_sender.c audio_receiver.c \
 	    $(LOPTS) \
 	    -o build/lua$(LUA_VERSION)/ljack.$(SO_EXT)
 	    

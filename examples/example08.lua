@@ -1,8 +1,16 @@
 ----------------------------------------------------------------------------------------------------
+--[[
+     This example demonstrates how an audio stream can be recorded and replayed using  
+     [Auproc audio receiver objects](https://github.com/osch/lua-auproc/blob/master/doc/README.md#auproc_new_audio_receiver)
+     and 
+     [Auproc audio sender objects](https://github.com/osch/lua-auproc/blob/master/doc/README.md#auproc_new_audio_sender).
+--]]
+----------------------------------------------------------------------------------------------------
 
-local nocurses = require("nocurses")
-local carray   = require("carray")
-local mtmsg    = require("mtmsg")
+local nocurses = require("nocurses") -- https://github.com/osch/lua-nocurses
+local carray   = require("carray")   -- https://github.com/osch/lua-carray
+local mtmsg    = require("mtmsg")    -- https://github.com/osch/lua-mtmsg
+local auproc   = require("auproc")   -- https://github.com/osch/lua-auproc
 local ljack    = require("ljack")
 
 ----------------------------------------------------------------------------------------------------
@@ -76,9 +84,9 @@ received:notifier(nocurses, ">")
 local qlength = 3
 sendQueue:notifier(nocurses, "<", qlength)
 
-local receiver = ljack.new_audio_receiver(myInPort, received)
+local receiver = auproc.new_audio_receiver(myInPort, received)
 
-local sender = ljack.new_audio_sender(myOutPort, sendQueue)
+local sender = auproc.new_audio_sender(myOutPort, sendQueue)
 
 
 ----------------------------------------------------------------------------------------------------

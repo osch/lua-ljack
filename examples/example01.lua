@@ -1,3 +1,10 @@
+----------------------------------------------------------------------------------------------------
+--[[
+     This example lists all JACK ports and connects the first MIDI OUT port with
+     the first MIDI IN port if these are available.
+--]]
+----------------------------------------------------------------------------------------------------
+
 local ljack = require("ljack")
 
 local client = ljack.client_open("example01.lua")

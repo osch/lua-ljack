@@ -23,7 +23,6 @@ typedef struct LjackProcBufUserData
     const char*        procBufName;
     int                nameRef;
     
-    jack_nframes_t     bufferSize;
     jack_ringbuffer_t* ringBuffer;
     
     uint32_t           midiEventCount;

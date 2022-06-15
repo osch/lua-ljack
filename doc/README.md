@@ -11,12 +11,6 @@
         * [ljack.set_info_log()](#ljack_set_info_log)
         * [ljack.client_name_size()](#ljack_client_name_size)
         * [ljack.port_name_size()](#ljack_port_name_size)
-        * [ljack.new_audio_mixer()](#ljack_new_audio_mixer)
-        * [ljack.new_midi_mixer()](#ljack_new_midi_mixer)
-        * [ljack.new_midi_receiver()](#ljack_new_midi_receiver)
-        * [ljack.new_midi_sender()](#ljack_new_midi_sender)
-        * [ljack.new_audio_sender()](#ljack_new_audio_sender)
-        * [ljack.new_audio_receiver()](#ljack_new_audio_receiver)
    * [Client Methods](#client-methods)
         * [client:name()](#client_name)
         * [client:activate()](#client_activate)
@@ -47,9 +41,6 @@
         * [port:get_connections()](#port_get_connections)
    * [Connector Objects](#connector-objects)
    * [Processor Objects](#processor-objects)
-        * [processor:activate()](#processor_activate)
-        * [processor:deactivate()](#processor_deactivate)
-        * [processor:close()](#processor_close)
    * [Status messages](#status-messages)
         * [ClientRegistration](#ClientRegistration)
         * [GraphOrder](#GraphOrder)
@@ -136,161 +127,6 @@ to be implemented in native C using the [Auproc C API].
   A port's full name contains the owning client name concatenated with a colon (:) followed 
   by its short name.
 
-<!-- ---------------------------------------------------------------------------------------- -->
-
-* <a id="ljack_new_audio_mixer">**`  ljack.new_audio_mixer(audioIn[, audioIn]*, audioOut, mixCtrl)
-  `**</a>
-
-  Returns a new audio mixer object. The audio mixer object is a 
-  [processor object](#processor-objects).
-  
-  * *audioIn*  - one or more [connector objects](#connector-objects) of type *AUDIO IN*.
-  * *audioOut* - [connector object](#connector-objects) of type *AUDIO OUT*.
-  * *mixCtrl*  - optional sender object for controlling the mixer, must implement 
-                 the [Sender C API], e.g. a [mtmsg] buffer.
-  
-  The mixer can be controlled by sending messages with the given *mixCtrl* object to the mixer.
-  Each message should contain subsequent pairs of numbers: the first number, an integer, 
-  is the number of the *audioIn*  connector (1 means *first connector*), the second number 
-  of each pair, a float, is the amplification factor that is applied to the corresponding 
-  input connector given by the first number of the pair.
-  
-  
-  See also [example06.lua](../examples/example06.lua).
-
-<!-- ---------------------------------------------------------------------------------------- -->
-
-* <a id="ljack_new_midi_mixer">**`  ljack.new_midi_mixer(midiIn[, midiIn]*, midiOut, mixCtrl)
-  `**</a>
-
-  * *midiIn*   - one or more [connector objects](#connector-objects) of type *MIDI IN*.
-  * *midiOut*  - [connector object](#connector-objects) of type *MIDI OUT*.
-  * *mixCtrl*  - optional sender object for controlling the mixer, must implement 
-                 the [Sender C API], e.g. a [mtmsg] buffer.
-  
-  The mixer can be controlled by sending messages with the given *mixCtrl* object to the mixer.
-  Each message should contain subsequent triplets of integers: the first integer 
-  is the number of the *midiIn*  connector (1 means *first connector*), the second integer 
-  of each triplet is the source channel (1-16) that is to be mapped and the third integer is 
-  the new channel number (1-16) that the source channel events are mapped to or may be 
-  0 to discard events for the given source channel.
-  
-  See also [example07.lua](../examples/example07.lua).
-
-<!-- ---------------------------------------------------------------------------------------- -->
-
-* <a id="ljack_new_midi_receiver">**`  ljack.new_midi_receiver(midiIn, receiver)
-  `**</a>
-
-  Returns a new midi receiver object. The midi receiver object is a 
-  [processor object](#processor-objects).
-  
-  * *midiIn* - [connector object](#connector-objects) of type *MIDI IN*. 
-               If this is a port, it must belong to the associated client, 
-               i.e. [port:is_mine()](#port_is_mine) must be *true*.
-               
-  * *receiver* - receiver object for midi events, must implement the [Receiver C API], 
-                 e.g. a [mtmsg] buffer.
-  
-  The receiver object receivers for each midi event a message with two arguments:
-    - the time of the midi event as integer value in JACK's frame time
-      (see also [client:frame_time()](#client_frame_time)).
-    - the midi event bytes, an [carray] of  8-bit integer values.
-    
-  The midi receiver object is subject to garbage collection. The given port object is owned by the
-  midi receiver object, i.e. the port object is not garbage collected as long as the midi receiver 
-  object is not garbage collected.
-    
-  See also [example03.lua](../examples/example03.lua).
-
-<!-- ---------------------------------------------------------------------------------------- -->
-
-* <a id="ljack_new_midi_sender">**`  ljack.new_midi_sender(midiOut, sender)
-  `**</a>
-  
-  Returns a new midi sender object. The midi sender object is a 
-  [processor object](#processor-objects).
-  
-  * *midiOut*   - [connector object](#connector-objects) of type *MIDI OUT*. 
-                  If this is a port, it must belong to the associated client, 
-                  i.e. [port:is_mine()](#port_is_mine) must be *true*.
-               
-  * *sender* - sender object for midi events, must implement the [Sender C API], 
-               e.g. a [mtmsg] buffer.
-  
-  The sender object should send for each midi event a message with two arguments:
-    - optional the frame time of the midi event as integer value in JACK's frame time
-      (see also [client:frame_time()](#client_frame_time)). If this value is not given,
-      the midi event is sent as soon as possible. If this value refers to a frame time in the
-      past, the event is discarded.
-    - the midi event bytes as [carray] of  8-bit integer values.
-    
-  The caller is responsible for sending the events in order, i.e. for increasing the frame 
-  time, i.e. the frame time of the subsequent midi event must be equal or larger then the frame 
-  time of the preceding midi event.
-
-  The midi sender object is subject to garbage collection. The given connector object is owned 
-  by the midi sender object, i.e. the connector object is not garbage collected as long as the 
-  midi sender object is not garbage collected.
-
-  See also [example04.lua](../examples/example04.lua).
-
-<!-- ---------------------------------------------------------------------------------------- -->
-
-* <a id="ljack_new_audio_sender">**`  ljack.new_audio_sender(audioOut, sender)
-  `**</a>
-
-  Returns a new audio sender object. The audio sender object is a 
-  [processor object](#processor-objects).
-
-  * *audioOut*   - [connector object](#connector-objects) of type *AUDIO OUT*. 
-                   If this is a port, it must belong to the associated client, 
-                   i.e. [port:is_mine()](#port_is_mine) must be *true*.
-                    
-  * *sender* - sender object for sample data, must implement the [Sender C API], e.g. a [mtmsg] buffer.
-
-  The sender object should send for each chunk of sample data a message with one or two arguments:
-    - optional the frame time of the sample data as integer value in JACK's frame time
-      (see also [client:frame_time()](#client_frame_time)). If this value is not given,
-      the samples are played as soon as possible.
-    - chunk of sample data, an [carray] of 32-bit float values.
- 
-  The caller is responsible for sending the events in order, i.e. for increasing the frame 
-  time. The chunks of sample data may not overlap, i.e. the frame time of subsequent sample 
-  data chunks must be equal or larger then the frame time of the preceding sample data chunk
-  plus the length of the preceding chunk.
-
-  The audio sender object is subject to garbage collection. The given connector object is owned 
-  by the audio sender object, i.e. the connector object is not garbage collected as long as the 
-  audio sender object is not garbage collected.
-
-  See also [example05.lua](../examples/example05.lua).
-
-<!-- ---------------------------------------------------------------------------------------- -->
-
-* <a id="ljack_new_audio_receiver">**`  ljack.new_audio_receiver(audioIn, receiver)
-  `**</a>
-
-  Returns a new audio receiver object. The audio receiver object is a 
-  [processor object](#processor-objects).
-
-  * *audioIn* - [connector object](#connector-objects) of type *AUDIO IN*. 
-                If this is a port, it must belong to the associated client, 
-                i.e. [port:is_mine()](#port_is_mine) must be *true*.
-               
-  * *receiver* - receiver object for audio samples, must implement the [Receiver C API], 
-                 e.g. a [mtmsg] buffer.
-  
-  The receiver object receivers for each audio sample chunk a message with two arguments:
-    - the time of the audio event as integer value in JACK's frame time
-      (see also [client:frame_time()](#client_frame_time)).
-    - the audio sample bytes, an [carray] of 32-bit float values.
-    
-  The audio receiver object is subject to garbage collection. The given connector object is owned by the
-  audio receiver object, i.e. the connector object is not garbage collected as long as the audio receiver 
-  object is not garbage collected.
-    
-  See also [example08.lua](../examples/example08.lua).
 
 <!-- ---------------------------------------------------------------------------------------- -->
 ##   Client Methods
@@ -576,43 +412,11 @@ Connector objects are either *port objects* with
 Processor objects are Lua objects for processing realtime audio data. They must be implemented
 in C using the [Auproc C API].
 
-LJACK includes the following procesor objects. The implementations can be seen as examples
-on how to implement procesor objects using the [Auproc C API].
+Processor objects can be connected to audio or midi data streams using 
+[connector objects](#connector-objects).
 
-  * [audio mixer](#ljack_new_audio_mixer),       implementation: [audio_mixer.c](../src/audio_mixer.c).
-  * [midi mixer](#ljack_new_midi_mixer),         implementation: [midi_mixer.c](../src/midi_mixer.c).
-  * [midi reveicer](#ljack_new_midi_receiver),   implementation: [midi_receiver.c](../src/midi_receiver.c).
-  * [midi sender](#ljack_new_midi_sender),       implementation: [midi_sender.c](../src/midi_sender.c).
-  * [audio sender](#ljack_new_audio_sender),     implementation: [audio_sender.c](../src/audio_sender.c).
-  * [audio receiver](#ljack_new_audio_receiver), implementation: [audio_receiver.c](../src/audio_receiver.c).
-
-The above builtin processor objects are implementing the following methods:
-  
-<!-- ---------------------------------------------------------------------------------------- -->
-
-* <a id="processor_activate">**`       processor:activate()
-  `** </a>
-  
-  Activates the processor object. A activated processor object is taking part in realtime audio
-  processing, i.e. the associated *processCallback* is periodically called in the JACK realtime 
-  thread.
-  
-<!-- ---------------------------------------------------------------------------------------- -->
-
-* <a id="processor_deactivate">**`     processor:deactivate()
-  `** </a>
-  
-  Deactivates the processor object. A deactivated processor object can be activated again 
-  by calling [processor:activate()](#processor_activate).
-  
-
-<!-- ---------------------------------------------------------------------------------------- -->
-
-* <a id="processor_close">**`     processor:close()
-  `** </a>
-  
-  Closes the processor object. A closed processor object is invalid and cannot be used
-  furthermore.
+The [LJACK examples](../examples) are using procesor objects that are provided by the
+[lua-auproc](https://github.com/osch/lua-auproc) package.
 
 <!-- ---------------------------------------------------------------------------------------- -->
 ##   Status Messages
@@ -731,5 +535,5 @@ End of document.
 [light userdata]:           https://www.lua.org/manual/5.4/manual.html#2.1
 [Receiver C API]:           https://github.com/lua-capis/lua-receiver-capi
 [Sender C API]:             https://github.com/lua-capis/lua-sender-capi
-[Auproc C API]:              ../src/auproc_capi.h
+[Auproc C API]:             https://github.com/lua-capis/lua-auproc-capi
 [JACK Client Callbacks]:    https://jackaudio.org/api/group__ClientCallbacks.html

@@ -197,18 +197,18 @@ static auproc_engine* getEngine(lua_State* L, int index, auproc_info* info)
 
 /* ============================================================================================ */
 
-static int isEngineClosed(auproc_engine* client)
+static int isEngineClosed(auproc_engine* engine)
 {
-    ClientUserData* udata = (ClientUserData*) client;
+    ClientUserData* udata = (ClientUserData*) engine;
     ljack_client_handle_shutdown(udata);
     return !udata || !udata->client;
 }
 
 /* ============================================================================================ */
 
-static void checkEngineIsNotClosed(lua_State* L, auproc_engine* client)
+static void checkEngineIsNotClosed(lua_State* L, auproc_engine* engine)
 {
-    ClientUserData* udata = (ClientUserData*) client;
+    ClientUserData* udata = (ClientUserData*) engine;
     ljack_client_check_is_valid(L, udata);
 }
 
@@ -238,23 +238,23 @@ static auproc_direction getPossibleDirections(lua_State* L, int index)
     PortUserData*    portUdata    = NULL;
     ProcBufUserData* procBufUdata = NULL;
     ljack_client_intern_get_connector(L, index, &portUdata, &procBufUdata);
-    auproc_direction rslt = 0;
+    auproc_direction rslt = AUPROC_NONE;
     if (portUdata) {
-        if (portUdata->isInput)  rslt |= AUPROC_IN;
-        if (portUdata->isOutput) rslt |= AUPROC_OUT;
+        if (portUdata->isInput)                                       rslt |= AUPROC_IN;
+        if (portUdata->isOutput && portUdata->procUsageCounter == 0)  rslt |= AUPROC_OUT;
     }
     else if (procBufUdata) {
-        if (procBufUdata->inpUsageCounter == 0) rslt |= AUPROC_IN;
-        rslt |= AUPROC_OUT;
+        if (procBufUdata->outUsageCounter == 0) rslt = AUPROC_OUT;
+        else                                    rslt = AUPROC_IN;
     }
     return rslt;
 }
 
 /* ============================================================================================ */
 
-auproc_reg_err_type checkPortReg(ClientUserData*   clientUdata,
-                                 PortUserData*     udata,
-                                 auproc_con_reg*   conReg)
+static auproc_reg_err_type checkPortReg(ClientUserData*   clientUdata,
+                                        PortUserData*     udata,
+                                        auproc_con_reg*   conReg)
 {
     if (!udata || !udata->client) {
         return AUPROC_REG_ERR_CONNCTOR_INVALID;
@@ -284,9 +284,9 @@ auproc_reg_err_type checkPortReg(ClientUserData*   clientUdata,
 
 /* ============================================================================================ */
 
-auproc_reg_err_type checkProcBufReg(ClientUserData*  clientUdata,
-                                    ProcBufUserData* udata,
-                                    auproc_con_reg*  conReg)
+static auproc_reg_err_type checkProcBufReg(ClientUserData*  clientUdata,
+                                           ProcBufUserData* udata,
+                                           auproc_con_reg*  conReg)
 {
     if (!udata || !udata->jackClient) {
         return AUPROC_REG_ERR_CONNCTOR_INVALID;
@@ -316,18 +316,18 @@ auproc_reg_err_type checkProcBufReg(ClientUserData*  clientUdata,
 /* ============================================================================================ */
 
 static auproc_processor* registerProcessor(lua_State* L, 
-                                               int firstConnectorIndex, int connectorCount,
-                                               auproc_engine* client, 
-                                               const char* processorName,
-                                               void* processorData,
-                                               int  (*processCallback)(jack_nframes_t nframes, void* processorData),
-                                               int  (*bufferSizeCallback)(jack_nframes_t nframes, void* processorData),
-                                               void (*engineClosedCallback)(void* processorData),
-                                               void (*engineReleasedCallback)(void* processorData),
-                                               auproc_con_reg* conRegList,
-                                               auproc_con_reg_err*  regError)
+                                           int firstConnectorIndex, int connectorCount,
+                                           auproc_engine* engine, 
+                                           const char* processorName,
+                                           void* processorData,
+                                           int  (*processCallback)(jack_nframes_t nframes, void* processorData),
+                                           int  (*bufferSizeCallback)(jack_nframes_t nframes, void* processorData),
+                                           void (*engineClosedCallback)(void* processorData),
+                                           void (*engineReleasedCallback)(void* processorData),
+                                           auproc_con_reg* conRegList,
+                                           auproc_con_reg_err*  regError)
 {
-    ClientUserData* clientUdata = (ClientUserData*) client;
+    ClientUserData* clientUdata = (ClientUserData*) engine;
     
     if (!processorName || !processorData || !processCallback) {
         if (regError) {
@@ -387,10 +387,10 @@ static auproc_processor* registerProcessor(lua_State* L,
     LjackProcReg** oldList = clientUdata->procRegList;
     int            n       = clientUdata->procRegCount;
     
-    LjackProcReg*   newReg    = malloc(sizeof(LjackProcReg));
+    LjackProcReg*   newReg    = calloc(1, sizeof(LjackProcReg));
     int             newLength = n + 1;
-    LjackProcReg**  newList   = malloc(sizeof(LjackProcReg*)  * (newLength + 1));
-    ConnectorInfo*  conInfos  = malloc(sizeof(ConnectorInfo) * connectorCount);
+    LjackProcReg**  newList   = calloc(newLength + 1, sizeof(LjackProcReg*));
+    ConnectorInfo*  conInfos  = calloc(connectorCount, sizeof(ConnectorInfo));
     char*           procName  = malloc(strlen(processorName) + 1);
     if (!newReg || !newList || !conInfos || !procName) {
         if (newReg)   free(newReg);
@@ -401,13 +401,11 @@ static auproc_processor* registerProcessor(lua_State* L,
         luaL_error(L, "out of memory");
         return NULL;
     }
-    memset(newReg, 0, sizeof(LjackProcReg));
     if (oldList) {
         memcpy(newList, oldList, sizeof(LjackProcReg*) * n);
     }
     newList[newLength-1] = newReg;
     newList[newLength]   = NULL;
-    memset(conInfos, 0, sizeof(ConnectorInfo) * connectorCount);
     strcpy(procName, processorName);
 
     newReg->processorName          = procName;
@@ -499,10 +497,10 @@ static auproc_processor* registerProcessor(lua_State* L,
 /* ============================================================================================ */
 
 static void unregisterProcessor(lua_State* L,
-                                auproc_engine* client,
+                                auproc_engine* engine,
                                 auproc_processor* processor)
 {
-    ClientUserData* clientUdata = (ClientUserData*) client;
+    ClientUserData* clientUdata = (ClientUserData*) engine;
     LjackProcReg*   reg         = (LjackProcReg*)   processor;
 
     int            n       = clientUdata->procRegCount;
@@ -564,10 +562,10 @@ static void unregisterProcessor(lua_State* L,
 /* ============================================================================================ */
 
 static void activateProcessor(lua_State* L,
-                              auproc_engine* client,
+                              auproc_engine* engine,
                               auproc_processor* processor)
 {
-    ClientUserData* clientUdata = (ClientUserData*) client;
+    ClientUserData* clientUdata = (ClientUserData*) engine;
     LjackProcReg*   reg         = (LjackProcReg*)   processor;
 
     if (!reg->activated) 
@@ -598,10 +596,10 @@ static void activateProcessor(lua_State* L,
 /* ============================================================================================ */
 
 static void deactivateProcessor(lua_State* L,
-                                auproc_engine* client,
+                                auproc_engine* engine,
                                 auproc_processor* processor)
 {
-    ClientUserData* clientUdata = (ClientUserData*) client;
+    ClientUserData* clientUdata = (ClientUserData*) engine;
     LjackProcReg*   reg         = (LjackProcReg*)   processor;
 
     if (reg->activated)
@@ -631,34 +629,16 @@ static void deactivateProcessor(lua_State* L,
 
 /* ============================================================================================ */
 
-static uint32_t getProcessBeginFrameTime(auproc_engine* client)
+static uint32_t getProcessBeginFrameTime(auproc_engine* engine)
 {
-    ClientUserData* clientUdata = (ClientUserData*) client;
+    ClientUserData* clientUdata = (ClientUserData*) engine;
 
     return jack_last_frame_time(clientUdata->client);
 }
 
 /* ============================================================================================ */
 
-static uint64_t frameTimeToMicroSeconds(auproc_engine* client, uint32_t nframes)
-{
-    ClientUserData* clientUdata = (ClientUserData*) client;
-
-    return jack_frames_to_time(clientUdata->client, nframes);
-}
-
-/* ============================================================================================ */
-
-static uint32_t microSecondsToFrameTime(auproc_engine* client, uint64_t usecs)
-{
-    ClientUserData* clientUdata = (ClientUserData*) client;
-
-    return jack_time_to_frames(clientUdata->client, usecs);
-}
-
-/* ============================================================================================ */
-
-static void logError(auproc_engine* client, const char* fmt, ...)
+static void logError(auproc_engine* engine, const char* fmt, ...)
 {
     bool finished;
     do {
@@ -671,7 +651,7 @@ static void logError(auproc_engine* client, const char* fmt, ...)
 
 /* ============================================================================================ */
 
-static void logInfo(auproc_engine* client, const char* fmt, ...)
+static void logInfo(auproc_engine* engine, const char* fmt, ...)
 {
     bool finished;
     do {
@@ -704,8 +684,6 @@ const auproc_capi auproc_capi_impl =
     activateProcessor,
     deactivateProcessor,
     getProcessBeginFrameTime,
-    frameTimeToMicroSeconds,
-    microSecondsToFrameTime,
     "client", /* engine_category_name */    
     logError,
     logInfo,

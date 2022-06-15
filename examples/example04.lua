@@ -1,7 +1,15 @@
+----------------------------------------------------------------------------------------------------
+--[[
+     This example sends MIDI Note On/Off events. This example demonstrates the usage of a 
+     [Auproc midi sender object](https://github.com/osch/lua-auproc/blob/master/doc/README.md#auproc_new_midi_sender).
+--]]
+----------------------------------------------------------------------------------------------------
+
 local format   = string.format
 local nocurses = require("nocurses") -- https://github.com/osch/lua-nocurses
 local carray   = require("carray")   -- https://github.com/osch/lua-carray
 local mtmsg    = require("mtmsg")    -- https://github.com/osch/lua-mtmsg
+local auproc   = require("auproc")   -- https://github.com/osch/lua-auproc
 local ljack    = require("ljack")
 
 ----------------------------------------------------------------------------------------------------
@@ -56,7 +64,7 @@ end
 local otherMidiPort = choosePort("MIDI", "IN")
 myMidiPort:connect(otherMidiPort)
 
-local sender = ljack.new_midi_sender(myMidiPort, midiBuffer)
+local sender = auproc.new_midi_sender(myMidiPort, midiBuffer)
 sender:activate()
 
 ----------------------------------------------------------------------------------------------------

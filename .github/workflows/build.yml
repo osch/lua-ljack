@@ -31,6 +31,7 @@ jobs:
         luarocks --server=https://luarocks.org/dev install nocurses
         luarocks --server=https://luarocks.org/dev install carray
         luarocks --server=https://luarocks.org/dev install mtmsg
+        luarocks --server=https://luarocks.org/dev install auproc
 
     - name: build
       run: |
