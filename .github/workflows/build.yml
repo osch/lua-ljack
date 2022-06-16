@@ -7,7 +7,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
+        os: ["ubuntu-latest", "ubuntu-22.04"]
         luaVersion: ["5.1", "5.2", "5.3", "5.4", "luajit"]
 
     runs-on: ${{ matrix.os }}
@@ -22,7 +22,7 @@ jobs:
     - uses: leafo/gh-actions-luarocks@master
 
     - name: setup-linux
-      if: matrix.os == 'ubuntu-latest'
+      if: matrix.os == 'ubuntu-latest' || matrix.os == 'ubuntu-22.04'
       run: |
         sudo apt-get install jackd libjack0 libjack-dev
 
@@ -45,5 +45,7 @@ jobs:
         set -e
         lua -v
         jackd -r -ddummy -r44100 -p1024 &
+        sleep 2
+        echo "=============================================="
         lua examples/example01.lua
      

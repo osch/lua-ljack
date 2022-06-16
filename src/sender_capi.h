@@ -223,7 +223,7 @@ struct sender_capi
 static int sender_set_capi(lua_State* L, int index, const sender_capi* capi)
 {
     lua_pushlstring(L, SENDER_CAPI_ID_STRING, strlen(SENDER_CAPI_ID_STRING));           /* -> key */
-    void** udata = lua_newuserdata(L, sizeof(void*) + strlen(SENDER_CAPI_ID_STRING) + 1); /* -> key, value */
+    void** udata = (void**) lua_newuserdata(L, sizeof(void*) + strlen(SENDER_CAPI_ID_STRING) + 1); /* -> key, value */
     *udata = (void*)capi;
     strcpy((char*)(udata + 1), SENDER_CAPI_ID_STRING);  /* -> key, value */
     lua_rawset(L, (index < 0) ? (index - 2) : index);     /* -> */
@@ -243,14 +243,14 @@ static const sender_capi* sender_get_capi(lua_State* L, int index, int* errorRea
 {
     if (luaL_getmetafield(L, index, SENDER_CAPI_ID_STRING) != LUA_TNIL)      /* -> _capi */
     {
-        void** udata = lua_touserdata(L, -1);                                  /* -> _capi */
+        const void** udata = (const void**) lua_touserdata(L, -1);           /* -> _capi */
 
         if (   udata
             && (lua_rawlen(L, -1) >= sizeof(void*) + strlen(SENDER_CAPI_ID_STRING) + 1)
             && (memcmp((char*)(udata + 1), SENDER_CAPI_ID_STRING, 
                        strlen(SENDER_CAPI_ID_STRING) + 1) == 0))
         {
-            const sender_capi* capi = *udata;                                /* -> _capi */
+            const sender_capi* capi = (const sender_capi*) *udata;             /* -> _capi */
             while (capi) {
                 if (   capi->version_major == SENDER_CAPI_VERSION_MAJOR
                     && capi->version_minor >= SENDER_CAPI_VERSION_MINOR)
@@ -258,7 +258,7 @@ static const sender_capi* sender_get_capi(lua_State* L, int index, int* errorRea
                     lua_pop(L, 1);                                             /* -> */
                     return capi;
                 }
-                capi = capi->next_capi;
+                capi = (const sender_capi*) capi->next_capi;
             }
             if (errorReason) {
                 *errorReason = 1;
