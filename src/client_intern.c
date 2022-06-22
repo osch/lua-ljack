@@ -295,7 +295,9 @@ static int jackProcessCallback(jack_nframes_t nframes, void* arg)
                                     jack_default_audio_sample_t* b = (jack_default_audio_sample_t*)info->procBufUdata->ringBuffer->buf;
                                     memset(b, 0, nframes * sizeof(jack_default_audio_sample_t));
                                 }
-                                
+                                else if (info->procBufUdata->isMidi) {
+                                    ljack_procbuf_clear_midi_events(info->procBufUdata);
+                                }
                             }
                         }
                     }

@@ -418,6 +418,35 @@ static auproc_processor* registerProcessor(lua_State* L,
     newReg->connectorCount         = connectorCount;
     newReg->connectorInfos         = conInfos;
       
+    for (int i = 0; i < connectorCount; ++i) {
+        PortUserData*    portUdata    = NULL;
+        ProcBufUserData* procBufUdata = NULL;
+        ljack_client_intern_get_connector(L, firstConnectorIndex + i, &portUdata, &procBufUdata);
+        if (portUdata) {
+            conInfos[i].isPort = true;
+            portUdata->procUsageCounter += 1;
+            if (conRegList[i].conDirection == AUPROC_IN) {
+                conInfos[i].isInput  = true;
+            } else {
+                conInfos[i].isOutput = true;
+            }
+            conInfos[i].portUdata = portUdata;
+        } 
+        else if (procBufUdata) {
+            conInfos[i].isProcBuf = true;
+            procBufUdata->procUsageCounter += 1;
+            if (conRegList[i].conDirection == AUPROC_IN) {
+                procBufUdata->inpUsageCounter += 1;
+                conInfos[i].isInput = true;
+            } else {
+                conInfos[i].isOutput = true;
+                procBufUdata->outUsageCounter += 1;
+            }
+            conInfos[i].procBufUdata = procBufUdata;
+        }
+    }
+
+    /* --------------------------------------------------------------------- */
     async_mutex_lock(&clientUdata->processMutex);
     {
         int rc = 0;
@@ -441,6 +470,7 @@ static auproc_processor* registerProcessor(lua_State* L,
         ljack_client_intern_activate_proc_list_LOCKED(clientUdata, newList);
     }
     async_mutex_unlock(&clientUdata->processMutex);
+    /* --------------------------------------------------------------------- */
     
     if (oldList) {
         free(oldList);
@@ -451,14 +481,6 @@ static auproc_processor* registerProcessor(lua_State* L,
         ProcBufUserData* procBufUdata = NULL;
         ljack_client_intern_get_connector(L, firstConnectorIndex + i, &portUdata, &procBufUdata);
         if (portUdata) {
-            conInfos[i].isPort = true;
-            portUdata->procUsageCounter += 1;
-            if (conRegList[i].conDirection == AUPROC_IN) {
-                conInfos[i].isInput  = true;
-            } else {
-                conInfos[i].isOutput = true;
-            }
-            conInfos[i].portUdata = portUdata;
             conRegList[i].connector = (auproc_connector*)portUdata;
             if (portUdata->isAudio) {
                 conRegList[i].audioMethods = &portAudioMethods;
@@ -470,16 +492,6 @@ static auproc_processor* registerProcessor(lua_State* L,
             }
         } 
         else if (procBufUdata) {
-            conInfos[i].isProcBuf = true;
-            procBufUdata->procUsageCounter += 1;
-            if (conRegList[i].conDirection == AUPROC_IN) {
-                procBufUdata->inpUsageCounter += 1;
-                conInfos[i].isInput = true;
-            } else {
-                conInfos[i].isOutput = true;
-                procBufUdata->outUsageCounter += 1;
-            }
-            conInfos[i].procBufUdata = procBufUdata;
             conRegList[i].connector = (auproc_connector*)procBufUdata;
             if (procBufUdata->isAudio) {
                 conRegList[i].audioMethods = &procBufAudioMethods;
@@ -572,15 +584,6 @@ static void activateProcessor(lua_State* L,
     {
         for (int i = 0; i < reg->connectorCount; ++i) {
             LjackConnectorInfo* info = reg->connectorInfos + i;
-            if (info->isProcBuf && info->isInput) {
-                if (info->procBufUdata->outActiveCounter < 1) {
-                    luaL_error(L, "process buffer %p has no activated processor for providing data", info->procBufUdata);
-                    return;
-                }
-            }
-        }
-        for (int i = 0; i < reg->connectorCount; ++i) {
-            LjackConnectorInfo* info = reg->connectorInfos + i;
             if (info->isProcBuf) {
                 if (info->isInput) {
                     info->procBufUdata->inpActiveCounter += 1;
@@ -604,15 +607,6 @@ static void deactivateProcessor(lua_State* L,
 
     if (reg->activated)
     {
-        for (int i = 0; i < reg->connectorCount; ++i) {
-            LjackConnectorInfo* info = reg->connectorInfos + i;
-            if (info->isProcBuf && info->isOutput) {
-                if (info->procBufUdata->inpActiveCounter > 0) {
-                    luaL_error(L, "process buffer %p data is used by another activated processor", info->procBufUdata);
-                    return;
-                }
-            }
-        }
         for (int i = 0; i < reg->connectorCount; ++i) {
             LjackConnectorInfo* info = reg->connectorInfos + i;
             if (info->isProcBuf) {
