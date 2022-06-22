@@ -399,6 +399,7 @@ to be implemented in native C using the [Auproc C API].
 
 Connector objects are either *port objects* with 
 *[port:is_mine()](#port_is_mine) == true* or *process buffer objects*.
+They are used to specify input or output connections of [processor objects](#processor-objects).
 
   * [Port objects](#client_port_register) are visible to other JACK clients outside your Lua application.
 
