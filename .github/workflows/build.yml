@@ -18,6 +18,7 @@ jobs:
     - uses: leafo/gh-actions-lua@master
       with:
         luaVersion: ${{ matrix.luaVersion }}
+        buildCache: false
 
     - uses: leafo/gh-actions-luarocks@master
 

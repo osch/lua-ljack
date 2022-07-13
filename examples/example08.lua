@@ -8,7 +8,6 @@
 ----------------------------------------------------------------------------------------------------
 
 local nocurses = require("nocurses") -- https://github.com/osch/lua-nocurses
-local carray   = require("carray")   -- https://github.com/osch/lua-carray
 local mtmsg    = require("mtmsg")    -- https://github.com/osch/lua-mtmsg
 local auproc   = require("auproc")   -- https://github.com/osch/lua-auproc
 local ljack    = require("ljack")
