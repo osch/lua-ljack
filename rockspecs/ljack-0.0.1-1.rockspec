@@ -1,9 +1,9 @@
 package = "ljack"
-version = "scm-0"
+version = "0.0.1-1"
 local versionNumber = version:gsub("^(.*)-.-$", "%1")
 source = {
-  url = "https://github.com/osch/lua-ljack/archive/master.zip",
-  dir = "lua-ljack-master",
+  url = "https://github.com/osch/lua-ljack/archive/v"..versionNumber..".zip",
+  dir = "lua-ljack-"..versionNumber,
 }
 description = {
   summary = "Lua binding for the JACK Audio Connection Kit",
