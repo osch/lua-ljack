@@ -66,8 +66,8 @@ to be implemented in native C using the [Auproc C API].
 ##   Module Functions
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="ljack_client_open">**`  ljack.client_open(name[, statusReceiver])
-  `**</a>
+* <span id="ljack_client_open">**`ljack.client_open(name[, statusReceiver])
+  `**</span>
   
   Creates a new JACK client object with the given name. A client object is used to create
   and manage JACK audio or midi ports. Normally you would only create one client object 
@@ -86,8 +86,8 @@ to be implemented in native C using the [Auproc C API].
   
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="ljack_set_error_log">**`  ljack.set_error_log(arg)
-  `**</a>
+* <span id="ljack_set_error_log">**`ljack.set_error_log(arg)
+  `**</span>
 
   Sets how JACK error messages are logged.
 
@@ -102,8 +102,8 @@ to be implemented in native C using the [Auproc C API].
  
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="ljack_set_info_log">**`  ljack.set_info_log(arg)
-  `**</a>
+* <span id="ljack_set_info_log">**`ljack.set_info_log(arg)
+  `**</span>
 
   Sets how JACK info messages are logged.
 
@@ -111,16 +111,16 @@ to be implemented in native C using the [Auproc C API].
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="ljack_client_name_size">**`  ljack.client_name_size()
-  `**</a>
+* <span id="ljack_client_name_size">**`ljack.client_name_size()
+  `**</span>
 
   Returns the maximum number of characters in a JACK client name. This value is a constant.
   
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="ljack_port_name_size">**`  ljack.port_name_size()
-  `**</a>
+* <span id="ljack_port_name_size">**`ljack.port_name_size()
+  `**</span>
 
   Returns the maximum number of characters in a full JACK port name. This value is a constant.
 
@@ -132,8 +132,8 @@ to be implemented in native C using the [Auproc C API].
 ##   Client Methods
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="client_name">**`      client:name()
-  `** </a>
+* <span id="client_name">**`client:name()
+  `** </span>
   
   Returns the actual client name. The actual name will differ from the name given
   in [ljack.client_open()](#ljack_client_open) if there was another JACK client with
@@ -141,24 +141,24 @@ to be implemented in native C using the [Auproc C API].
   
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="client_activate">**`      client:activate()
-  `** </a>
+* <span id="client_activate">**`client:activate()
+  `** </span>
   
   Tell the Jack server that the program is ready to start processing audio.
   
   
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="client_deactivate">**`    client:deactivate()
-  `** </a>
+* <span id="client_deactivate">**`client:deactivate()
+  `** </span>
   
   Tell the Jack server to remove this client from the process graph. Also,
   disconnect all ports belonging to it, since inactive clients have no port
   connections. The client may be activated again afterwards.
   
 <!-- ---------------------------------------------------------------------------------------- -->
-* <a id="client_close">**`         client:close()
-  `** </a>
+* <span id="client_close">**`client:close()
+  `** </span>
   
   Closes and disconnects all ports that are belonging to this client. The client object 
   becomes invalid and cannot be used furthermore.
@@ -166,8 +166,8 @@ to be implemented in native C using the [Auproc C API].
   
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="client_port_register">**`       client:port_register(name, type, direction)
-  `** </a>
+* <span id="client_port_register">**`client:port_register(name, type, direction)
+  `** </span>
 
   Returns a new port object for the client.
 
@@ -195,8 +195,8 @@ to be implemented in native C using the [Auproc C API].
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="client_connect">**`       client:connect(sourcePort, destinationPort)
-  `** </a>
+* <span id="client_connect">**`client:connect(sourcePort, destinationPort)
+  `** </span>
   
   Establish a connection between two ports. When a connection exists, data
   written to the source port will be available to be read at the destination
@@ -212,15 +212,15 @@ to be implemented in native C using the [Auproc C API].
   
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="client_disconnect">**`    client:disconnect(sourcePort, destinationPort)
-  `** </a>
+* <span id="client_disconnect">**`client:disconnect(sourcePort, destinationPort)
+  `** </span>
 
   Disconnects the ports.
     
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="client_get_ports">**`     client:get_ports([portNamePattern[, typeName[, direction]]])
-  `** </a>
+* <span id="client_get_ports">**`client:get_ports([portNamePattern[, typeName[, direction]]])
+  `** </span>
   
   Returns a list of port names matching the given criteria.
   
@@ -232,8 +232,8 @@ to be implemented in native C using the [Auproc C API].
   
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="client_port_name">**`     client:port_name(id)
-  `** </a>
+* <span id="client_port_name">**`client:port_name(id)
+  `** </span>
 
   Returns the port name as string value for the given port ID. 
   Port IDs are given as arguments in the [status messages](#status-messages).
@@ -242,8 +242,8 @@ to be implemented in native C using the [Auproc C API].
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="client_port_by_id">**`    client:port_by_id(id)
-  `** </a>
+* <span id="client_port_by_id">**`client:port_by_id(id)
+  `** </span>
 
   Returns a port object for the given port ID. Port IDs are given as arguments in the 
   [status messages](#status-messages).
@@ -252,8 +252,8 @@ to be implemented in native C using the [Auproc C API].
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="client_port_by_name">**`  client:port_by_name(name)
-  `** </a>
+* <span id="client_port_by_name">**`client:port_by_name(name)
+  `** </span>
 
   Returns a port object for the given full port name.
   
@@ -261,8 +261,8 @@ to be implemented in native C using the [Auproc C API].
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="client_get_time">**`      client:get_time()
-  `** </a>
+* <span id="client_get_time">**`client:get_time()
+  `** </span>
 
   Returns JACK's current system time in microseconds as integer value, using the 
   JACK clock source.
@@ -272,38 +272,38 @@ to be implemented in native C using the [Auproc C API].
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="client_frame_time">**`      client:frame_time()
-  `** </a>
+* <span id="client_frame_time">**`client:frame_time()
+  `** </span>
 
   Returns the estimated current time in frames.
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="client_get_sample_rate">**`      client:get_sample_rate()
-  `** </a>
+* <span id="client_get_sample_rate">**`client:get_sample_rate()
+  `** </span>
 
   Returns the sample rate of the JACK system, as set by the user when jackd was started.
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="client_get_buffer_size">**`      client:get_buffer_size()
-  `** </a>
+* <span id="client_get_buffer_size">**`client:get_buffer_size()
+  `** </span>
 
   Returns the number of frames that are processed in one process cycle.
   See also [BufferSize status message](#BufferSize).
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="client_set_buffer_size">**`      client:set_buffer_size(n)
-  `** </a>
+* <span id="client_set_buffer_size">**`client:set_buffer_size(n)
+  `** </span>
 
   Sets the number of frames that are processed in one process cycle.
   See also [BufferSize status message](#BufferSize).
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="client_cpu_load">**`      client:cpu_load()
-  `** </a>
+* <span id="client_cpu_load">**`client:cpu_load()
+  `** </span>
 
   Returns the current CPU load estimated by JACK as float number in percent. This is a running 
   average of the time it takes to execute a full process cycle for all clients as a percentage 
@@ -311,8 +311,8 @@ to be implemented in native C using the [Auproc C API].
 
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="client_new_process_buffer">**` client:new_process_buffer([type])
-  `** </a>
+* <span id="client_new_process_buffer">**`client:new_process_buffer([type])
+  `** </span>
 
   Creates a new process buffer object which can be used as [connector](#connector-objects) 
   for [processor objects](#processor-objects). A process buffer can be used as input connector 
@@ -329,15 +329,15 @@ to be implemented in native C using the [Auproc C API].
 ##   Port Methods
 <!-- ---------------------------------------------------------------------------------------- -->
 
-* <a id="port_unregister">**`      port:unregister()
-  `** </a>
+* <span id="port_unregister">**`port:unregister()
+  `** </span>
   
   Remove the port from the client, disconnecting any existing connections.  
   The port object becomes invalid and cannot be used furthermore.
 
 
-* <a id="port_get_client">**`      port:get_client()
-  `** </a>
+* <span id="port_get_client">**`port:get_client()
+  `** </span>
   
   Gives the associated client object, i.e. the client object that the port object was
   created with. 
@@ -355,39 +355,39 @@ to be implemented in native C using the [Auproc C API].
 
 
 <!-- ---------------------------------------------------------------------------------------- -->
-* <a id="port_is_mine">**`        port:is_mine()
-  `** </a>
+* <span id="port_is_mine">**`port:is_mine()
+  `** </span>
   
   Returns *true* if the port belongs to the associated client, i.e. the port was registered 
   by the associated client, see also [port:get_client()](#port_get_client)
   
 <!-- ---------------------------------------------------------------------------------------- -->
-* <a id="port_is_input">**`       port:is_input()
-  `** </a>
+* <span id="port_is_input">**`port:is_input()
+  `** </span>
   
   Returns *true* if the port is an input port.
   
 <!-- ---------------------------------------------------------------------------------------- -->
-* <a id="port_is_output">**`      port:is_output()
-  `** </a>
+* <span id="port_is_output">**`port:is_output()
+  `** </span>
 
   Returns *true* if the port is an output port.
   
 <!-- ---------------------------------------------------------------------------------------- -->
-* <a id="port_is_midi">**`        port:is_midi()
-  `** </a>
+* <span id="port_is_midi">**`port:is_midi()
+  `** </span>
   
   Returns *true* if the port is a *MIDI* port.
 
 <!-- ---------------------------------------------------------------------------------------- -->
-* <a id="port_is_audio">**`       port:is_audio()
-  `** </a>
+* <span id="port_is_audio">**`port:is_audio()
+  `** </span>
   
   Returns *true* if the port is an *AUDIO* port.
 
 <!-- ---------------------------------------------------------------------------------------- -->
-* <a id="port_get_connections">**`       port:get_connections()
-  `** </a>
+* <span id="port_get_connections">**`port:get_connections()
+  `** </span>
   
   Returns a string list of full port names to which the port is connected. Returns an empty
   list if there is no port connected.
@@ -432,8 +432,8 @@ The [LJACK examples](../examples) are using procesor objects that are provided b
   
   <!-- ------------------------------------------- -->
 
-  * <a id="ClientRegistration">**`     "ClientRegistration", name, registered
-    `** </a>
+  * <span id="ClientRegistration">**`"ClientRegistration", name, registered
+    `** </span>
   
     a client is registered or unregistered.
     
@@ -444,15 +444,15 @@ The [LJACK examples](../examples) are using procesor objects that are provided b
 
   <!-- ------------------------------------------- -->
   
-  * <a id="GraphOrder">**`             "GraphOrder"
-    `** </a>
+  * <span id="GraphOrder">**`"GraphOrder"
+    `** </span>
   
     the JACK processing graph is reordered.
   
   <!-- ------------------------------------------- -->
 
-  * <a id="PortConnect">**`            "PortConnect", id1, id2, connected
-    `** </a>
+  * <span id="PortConnect">**`"PortConnect", id1, id2, connected
+    `** </span>
   
     ports are connected or disconnected. Invoke [client:port_name(id)](#client_port_name) or
     [client:port_by_id(id)](#client_port_by_id) to obtain the port name or port object for
@@ -467,8 +467,8 @@ The [LJACK examples](../examples) are using procesor objects that are provided b
 
   <!-- ------------------------------------------- -->
 
-  * <a id="PortRegistration">**`       "PortRegistration", id, registered
-    `** </a>
+  * <span id="PortRegistration">**`"PortRegistration", id, registered
+    `** </span>
   
     a port is registered or unregistered. Invoke [client:port_name(id)](#client_port_name) or
     [client:port_by_id(id)](#client_port_by_id) to obtain the port name or port object for
@@ -481,8 +481,8 @@ The [LJACK examples](../examples) are using procesor objects that are provided b
 
   <!-- ------------------------------------------- -->
 
-  * <a id="PortRename">**`             "PortRename", id, old_name, new_name
-    `** </a>
+  * <span id="PortRename">**`"PortRename", id, old_name, new_name
+    `** </span>
   
     a port is renamed.
     
@@ -494,8 +494,8 @@ The [LJACK examples](../examples) are using procesor objects that are provided b
 
   <!-- ------------------------------------------- -->
 
-  * <a id="BufferSize">**`             "BufferSize", nframes
-    `** </a>
+  * <span id="BufferSize">**`"BufferSize", nframes
+    `** </span>
   
     the number of frames that are processed in one process cycle has 
     been changed.
@@ -505,8 +505,8 @@ The [LJACK examples](../examples) are using procesor objects that are provided b
 
   <!-- ------------------------------------------- -->
 
-  * <a id="Shutdown">**`               "Shutdown", reason
-    `** </a>
+  * <span id="Shutdown">**`"Shutdown", reason
+    `** </span>
   
     jackd is shutdown.
     
@@ -515,8 +515,8 @@ The [LJACK examples](../examples) are using procesor objects that are provided b
 
   <!-- ------------------------------------------- -->
 
-  * <a id="XRun">**`                   "XRun"
-    `** </a>
+  * <span id="XRun">**`"XRun"
+    `** </span>
   
     xrun has occured.
 
